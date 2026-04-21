@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 悬浮窗根布局:
+     - 半透明黑底,白字,是提词器行业惯例
+     - 高度固定,宽度充满,用户可拖动位置
+     - ScrollView 承载可滚动的稿件文本 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/floating_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="#99000000"
+    android:padding="12dp">
+
+    <!-- 稿件滚动区域:高度固定 280dp,让用户能看到 3~5 行文本 -->
+    <ScrollView
+        android:id="@+id/scroll_view"
+        android:layout_width="match_parent"
+        android:layout_height="280dp"
+        android:scrollbars="none"
+        android:overScrollMode="never">
+
+        <TextView
+            android:id="@+id/script_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#FFFFFF"
+            android:textSize="24sp"
+            android:lineSpacingMultiplier="1.4"
+            android:paddingTop="120dp"
+            android:paddingBottom="120dp"
+            android:text="" />
+    </ScrollView>
+
+    <!-- 顶部拖动条:指示可拖动,也用作抓手 -->
+    <View
+        android:id="@+id/drag_handle"
+        android:layout_width="60dp"
+        android:layout_height="4dp"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="2dp"
+        android:background="#66FFFFFF" />
+
+    <!-- 关闭按钮 -->
+    <TextView
+        android:id="@+id/btn_close"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_gravity="top|end"
+        android:text="×"
+        android:textColor="#FFFFFF"
+        android:textSize="24sp"
+        android:gravity="center"
+        android:background="#44FFFFFF" />
+
+    <!-- 状态指示:显示 ASR 当前识别到的片段(调试用,可关闭) -->
+    <TextView
+        android:id="@+id/debug_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|start"
+        android:textColor="#88FFFFFF"
+        android:textSize="11sp"
+        android:text="等待语音..." />
+
+</FrameLayout>

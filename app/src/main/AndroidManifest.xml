@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 网络:调用豆包 ASR -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- 麦克风 -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- 悬浮窗(API 26+) -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+    <!-- 前台服务(必需):保证悬浮窗和麦克风在后台不被杀 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+
+    <!-- Android 13+ 通知权限(前台服务必须显示通知) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- 摄像头:视频录制 -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+
+    <!-- 蓝牙 SCO 耳机麦克风 -->
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+    <application
+        android:label="智能提词器"
+        android:theme="@style/Theme.Material3.DayNight">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- 视频录制提词器:内嵌摄像头预览 + 题词器叠加层 -->
+        <activity
+            android:name=".VideoRecordActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <!-- 核心:前台服务,承载悬浮窗 + 麦克风 + ASR WebSocket
+             foregroundServiceType 必须声明 microphone,否则 Android 12+ 后台采音被拒 -->
+        <service
+            android:name=".FloatingService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+    </application>
+</manifest>

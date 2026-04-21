@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+    <!-- 全屏摄像头预览 -->
+    <androidx.camera.view.PreviewView
+        android:id="@+id/preview_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:scaleType="fillCenter" />
+
+    <!-- 提词器叠加层：可折叠 + 底部拖动调整高度 -->
+    <LinearLayout
+        android:id="@+id/teleprompter_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:orientation="vertical"
+        android:background="#B3000000">
+
+        <!-- 顶部标题栏：点击折叠/展开 -->
+        <LinearLayout
+            android:id="@+id/overlay_header"
+            android:layout_width="match_parent"
+            android:layout_height="36dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="12dp"
+            android:paddingEnd="6dp">
+
+            <TextView
+                android:id="@+id/debug_text"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="按录制键开始"
+                android:textColor="#80FFFFFF"
+                android:textSize="11sp"
+                android:ellipsize="end"
+                android:maxLines="1" />
+
+            <!-- 折叠/展开箭头 -->
+            <FrameLayout
+                android:id="@+id/btn_toggle_overlay_frame"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginEnd="4dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless">
+                <TextView
+                    android:id="@+id/btn_toggle_overlay"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:text="▾"
+                    android:textColor="#FFFFFF"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+            </FrameLayout>
+        </LinearLayout>
+
+        <!-- 文字滚动区（折叠时隐藏） -->
+        <ScrollView
+            android:id="@+id/scroll_view"
+            android:layout_width="match_parent"
+            android:layout_height="180dp"
+            android:overScrollMode="never"
+            android:scrollbars="none">
+
+            <TextView
+                android:id="@+id/script_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingLeft="16dp"
+                android:paddingRight="16dp"
+                android:paddingTop="60dp"
+                android:paddingBottom="120dp"
+                android:textColor="#FFFFFF"
+                android:textSize="22sp"
+                android:lineSpacingMultiplier="1.4" />
+        </ScrollView>
+
+        <!-- 拖动手柄（折叠时隐藏） -->
+        <LinearLayout
+            android:id="@+id/resize_handle"
+            android:layout_width="match_parent"
+            android:layout_height="22dp"
+            android:gravity="center"
+            android:background="#1AFFFFFF">
+
+            <View
+                android:layout_width="40dp"
+                android:layout_height="3dp"
+                android:background="#66FFFFFF" />
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- 录制计时器（顶部居中） -->
+    <LinearLayout
+        android:id="@+id/recording_timer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="12dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:visibility="invisible">
+
+        <!-- 红色录制点 -->
+        <View
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:background="@drawable/record_dot" />
+
+        <TextView
+            android:id="@+id/timer_value"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:text="00:00"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:fontFamily="sans-serif-medium" />
+    </LinearLayout>
+
+    <!-- 底部控制栏（无背景） -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="88dp"
+        android:layout_gravity="bottom"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:paddingStart="32dp"
+        android:paddingEnd="32dp">
+
+        <!-- 返回按钮 -->
+        <FrameLayout
+            android:id="@+id/btn_back"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:clickable="true"
+            android:focusable="true">
+            <View
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_gravity="center"
+                android:background="@drawable/circle_button_border" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="✕"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp" />
+        </FrameLayout>
+
+        <Space
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <!-- 录制按钮：白色外环 + 红色圆形（未录制）/ 红色方形（录制中） -->
+        <FrameLayout
+            android:id="@+id/btn_record"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:clickable="true"
+            android:focusable="true">
+            <!-- 白色外环 -->
+            <View
+                android:layout_width="80dp"
+                android:layout_height="80dp"
+                android:layout_gravity="center"
+                android:background="@drawable/record_button_ring" />
+            <!-- 红色圆形（未录制）/ 红色方形（录制中） -->
+            <View
+                android:id="@+id/record_center"
+                android:layout_width="70dp"
+                android:layout_height="70dp"
+                android:layout_gravity="center"
+                android:background="@drawable/record_button_circle" />
+        </FrameLayout>
+
+        <Space
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <!-- 切换摄像头按钮 -->
+        <FrameLayout
+            android:id="@+id/btn_switch_camera"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:clickable="true"
+            android:focusable="true">
+            <View
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_gravity="center"
+                android:background="@drawable/circle_button_border" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="⇄"
+                android:textColor="#FFFFFF"
+                android:textSize="18sp" />
+        </FrameLayout>
+    </LinearLayout>
+
+</FrameLayout>
