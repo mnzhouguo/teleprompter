@@ -60,7 +60,9 @@ class VoiceSyncEngine(val script: String) {
         for (start in searchStart until searchEnd) {
             val end = (start + patternPinyin.size).coerceAtMost(scriptChars.size)
             if (end - start < 2) break
-            val score = similarity(patternPinyin, scriptPinyin.subList(start, end))
+            val rawScore = similarity(patternPinyin, scriptPinyin.subList(start, end))
+            val forwardDist = (start - currentPosition).coerceAtLeast(0)
+            val score = rawScore - forwardDist.toFloat() / SEARCH_FORWARD * 0.3f
             if (score > bestScore) {
                 bestScore = score
                 bestEndIdx = end

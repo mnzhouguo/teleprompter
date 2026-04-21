@@ -23,6 +23,9 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import android.hardware.camera2.CaptureRequest
+import androidx.camera.camera2.interop.Camera2Interop
+import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -33,6 +36,7 @@ import androidx.camera.video.Recorder
 import androidx.camera.video.Recording
 import androidx.camera.video.VideoCapture
 import androidx.camera.video.VideoRecordEvent
+import android.view.Surface
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 
@@ -159,12 +163,14 @@ class VideoRecordActivity : AppCompatActivity() {
         checkAndStartCamera()
     }
 
+    @ExperimentalCamera2Interop
     private fun checkAndStartCamera() {
         val missing = listOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
             .filter { ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }
         if (missing.isEmpty()) startCamera() else permLauncher.launch(missing.toTypedArray())
     }
 
+    @ExperimentalCamera2Interop
     private fun startCamera() {
         ProcessCameraProvider.getInstance(this).also { future ->
             future.addListener({
@@ -174,24 +180,34 @@ class VideoRecordActivity : AppCompatActivity() {
         }
     }
 
+    @ExperimentalCamera2Interop
     private fun bindCameraUseCases() {
         val provider = cameraProvider ?: return
-        val preview = Preview.Builder().build().apply {
+        val previewBuilder = Preview.Builder()
+        Camera2Interop.Extender(previewBuilder).setCaptureRequestOption(
+            CaptureRequest.CONTROL_AF_MODE,
+            CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO
+        )
+        val preview = previewBuilder.build().apply {
             setSurfaceProvider(previewView.surfaceProvider)
         }
         val recorder = Recorder.Builder()
-            .setQualitySelector(QualitySelector.from(Quality.HD))
+            .setQualitySelector(QualitySelector.from(Quality.HIGHEST))
             .build()
-        videoCapture = VideoCapture.withOutput(recorder)
+        videoCapture = VideoCapture.Builder(recorder)
+            .setTargetRotation(Surface.ROTATION_0)
+            .build()
 
         provider.unbindAll()
         try {
-            provider.bindToLifecycle(this, cameraSelector, preview, videoCapture!!)
+            val camera = provider.bindToLifecycle(this, cameraSelector, preview, videoCapture!!)
+            camera.cameraControl.setZoomRatio(1.5f)
         } catch (e: Exception) {
             toast("相机启动失败: ${e.message}")
         }
     }
 
+    @ExperimentalCamera2Interop
     private fun switchCamera() {
         if (isRecording) return
         cameraSelector = if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA)

@@ -39,9 +39,9 @@ class ScrollController(
         val paddingTop = textView.paddingTop.toFloat()
         val lineAbsY = paddingTop + lineTopInLayout   // 在 ScrollView 内容中的绝对 Y
 
-        // 让当前行落在可见区上部 5% 处
+        // 让当前行落在可见区上部 30% 处
         val visibleH = scrollView.height.takeIf { it > 0 } ?: 500
-        val targetScrollY = (lineAbsY - visibleH * 0.05f).coerceAtLeast(0f)
+        val targetScrollY = (lineAbsY - visibleH * 0.30f).coerceAtLeast(0f)
 
         springAnim.animateToFinalPosition(targetScrollY)
         android.util.Log.d("ScrollCtrl", "charIdx=$charIndex line=$line absY=$lineAbsY target=$targetScrollY svH=$visibleH")
