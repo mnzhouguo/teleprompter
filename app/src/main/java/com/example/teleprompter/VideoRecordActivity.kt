@@ -59,9 +59,13 @@ class VideoRecordActivity : AppCompatActivity() {
     private lateinit var timerValue: TextView
     private lateinit var overlayHeader: LinearLayout
     private lateinit var resizeHandle: LinearLayout
+    private lateinit var zoomPanel: LinearLayout
+    private lateinit var zoomButtons: List<TextView>
 
     private var overlayExpanded = true
     private var lastResizeY = 0f
+    private var currentZoom = 1.0f
+    private var camera: androidx.camera.core.Camera? = null
 
     private var cameraProvider: ProcessCameraProvider? = null
     private var videoCapture: VideoCapture<Recorder>? = null
@@ -121,12 +125,34 @@ class VideoRecordActivity : AppCompatActivity() {
         timerValue = findViewById(R.id.timer_value)
         overlayHeader = findViewById(R.id.overlay_header)
         resizeHandle = findViewById(R.id.resize_handle)
+        zoomPanel = findViewById(R.id.zoom_panel)
+
+        zoomButtons = listOf(
+            findViewById<TextView>(R.id.btn_zoom_0_8),
+            findViewById<TextView>(R.id.btn_zoom_1_0),
+            findViewById<TextView>(R.id.btn_zoom_1_2),
+            findViewById<TextView>(R.id.btn_zoom_1_4),
+            findViewById<TextView>(R.id.btn_zoom_1_6),
+            findViewById<TextView>(R.id.btn_zoom_1_8),
+            findViewById<TextView>(R.id.btn_zoom_2_0)
+        )
 
         scriptText.setText(SpannableString(script), TextView.BufferType.SPANNABLE)
 
         btnBack.setOnClickListener { onBackPressedDispatcher.onBackPressed() }
         btnRecord.setOnClickListener { toggleRecording() }
         btnSwitchCamera.setOnClickListener { switchCamera() }
+
+        // 焦距按钮点击
+        val zoomValues = listOf(0.8f, 1.0f, 1.2f, 1.4f, 1.6f, 1.8f, 2.0f)
+        zoomButtons.forEachIndexed { index, btn ->
+            btn.setOnClickListener {
+                currentZoom = zoomValues[index]
+                applyZoom()
+                updateZoomButtonStates()
+            }
+        }
+        updateZoomButtonStates()
 
         // 点击 header 折叠 / 展开提词器
         overlayHeader.setOnClickListener {
@@ -200,8 +226,8 @@ class VideoRecordActivity : AppCompatActivity() {
 
         provider.unbindAll()
         try {
-            val camera = provider.bindToLifecycle(this, cameraSelector, preview, videoCapture!!)
-            camera.cameraControl.setZoomRatio(1.5f)
+            camera = provider.bindToLifecycle(this, cameraSelector, preview, videoCapture!!)
+            camera?.cameraControl?.setZoomRatio(currentZoom)
         } catch (e: Exception) {
             toast("相机启动失败: ${e.message}")
         }
@@ -366,4 +392,25 @@ class VideoRecordActivity : AppCompatActivity() {
     }
 
     private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+
+    // ════════════════════════════════════════════
+    //  焦距设置
+    // ════════════════════════════════════════════
+
+    private fun applyZoom() {
+        camera?.cameraControl?.setZoomRatio(currentZoom)
+    }
+
+    private fun updateZoomButtonStates() {
+        val zoomValues = listOf(0.8f, 1.0f, 1.2f, 1.4f, 1.6f, 1.8f, 2.0f)
+        zoomButtons.forEachIndexed { index, btn ->
+            if (zoomValues[index] == currentZoom) {
+                btn.setBackgroundResource(R.drawable.bg_zoom_btn_selected)
+                btn.setTextColor(Color.parseColor("#FFD700"))
+            } else {
+                btn.setBackgroundResource(R.drawable.bg_zoom_btn)
+                btn.setTextColor(Color.parseColor("#80FFFFFF"))
+            }
+        }
+    }
 }

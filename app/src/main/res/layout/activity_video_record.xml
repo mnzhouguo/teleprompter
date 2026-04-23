@@ -211,4 +211,115 @@
         </FrameLayout>
     </LinearLayout>
 
+    <!-- 焦距设置面板（始终显示） -->
+    <LinearLayout
+        android:id="@+id/zoom_panel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:layout_marginBottom="100dp"
+        android:orientation="vertical"
+        android:background="#80000000"
+        android:paddingTop="10dp"
+        android:paddingBottom="10dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <!-- 焦距按钮：0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0 -->
+            <TextView
+                android:id="@+id/btn_zoom_0_8"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:gravity="center"
+                android:text="0.8"
+                android:textColor="#80FFFFFF"
+                android:textSize="11sp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="@drawable/bg_zoom_btn" />
+
+            <TextView
+                android:id="@+id/btn_zoom_1_0"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginStart="6dp"
+                android:gravity="center"
+                android:text="1.0"
+                android:textColor="#FFD700"
+                android:textSize="11sp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="@drawable/bg_zoom_btn_selected" />
+
+            <TextView
+                android:id="@+id/btn_zoom_1_2"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginStart="6dp"
+                android:gravity="center"
+                android:text="1.2"
+                android:textColor="#80FFFFFF"
+                android:textSize="11sp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="@drawable/bg_zoom_btn" />
+
+            <TextView
+                android:id="@+id/btn_zoom_1_4"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginStart="6dp"
+                android:gravity="center"
+                android:text="1.4"
+                android:textColor="#80FFFFFF"
+                android:textSize="11sp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="@drawable/bg_zoom_btn" />
+
+            <TextView
+                android:id="@+id/btn_zoom_1_6"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginStart="6dp"
+                android:gravity="center"
+                android:text="1.6"
+                android:textColor="#80FFFFFF"
+                android:textSize="11sp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="@drawable/bg_zoom_btn" />
+
+            <TextView
+                android:id="@+id/btn_zoom_1_8"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginStart="6dp"
+                android:gravity="center"
+                android:text="1.8"
+                android:textColor="#80FFFFFF"
+                android:textSize="11sp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="@drawable/bg_zoom_btn" />
+
+            <TextView
+                android:id="@+id/btn_zoom_2_0"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginStart="6dp"
+                android:gravity="center"
+                android:text="2.0"
+                android:textColor="#80FFFFFF"
+                android:textSize="11sp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="@drawable/bg_zoom_btn" />
+        </LinearLayout>
+    </LinearLayout>
+
 </FrameLayout>
