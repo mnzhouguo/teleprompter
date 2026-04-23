@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 编辑/新增文稿页面 -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#0A0A0B"
+    android:fitsSystemWindows="true">
+
+    <!-- 导航栏 -->
+    <LinearLayout
+        android:id="@+id/nav_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingTop="16dp"
+        android:paddingBottom="12dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp">
+
+        <!-- 返回按钮 -->
+        <LinearLayout
+            android:id="@+id/nav_back"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="?android:attr/selectableItemBackground">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@drawable/ic_back"
+                android:tint="#A1A1A6" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="返回"
+                android:textColor="#A1A1A6"
+                android:textSize="15sp"
+                android:layout_marginStart="4dp" />
+        </LinearLayout>
+
+        <!-- 标题 -->
+        <TextView
+            android:id="@+id/nav_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="编辑文稿"
+            android:textColor="#F5F5F7"
+            android:textSize="18sp"
+            android:fontFamily="serif"
+            android:textStyle="bold"
+            android:gravity="center" />
+
+        <!-- 保存按钮 -->
+        <LinearLayout
+            android:id="@+id/nav_save"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp"
+            android:paddingStart="18dp"
+            android:paddingEnd="18dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="@drawable/bg_save_button">
+
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@drawable/ic_save"
+                android:tint="#0A0A0B" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="保存"
+                android:textColor="#0A0A0B"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:layout_marginStart="6dp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 分割线 -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#14FFFFFF" />
+
+    <!-- 编辑内容区域 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- 标题输入框 -->
+        <EditText
+            android:id="@+id/title_input"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="输入标题..."
+            android:textColorHint="#48484A"
+            android:textColor="#F5F5F7"
+            android:textSize="18sp"
+            android:fontFamily="serif"
+            android:textStyle="bold"
+            android:background="@drawable/bg_input"
+            android:paddingTop="14dp"
+            android:paddingBottom="14dp"
+            android:paddingStart="18dp"
+            android:paddingEnd="18dp"
+            android:maxLines="1"
+            android:inputType="text"
+            android:layout_marginBottom="16dp" />
+
+        <!-- 内容编辑框（占据剩余高度） -->
+        <EditText
+            android:id="@+id/content_input"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:hint="在这里输入您的提词内容..."
+            android:textColorHint="#48484A"
+            android:textColor="#F5F5F7"
+            android:textSize="16sp"
+            android:lineSpacingMultiplier="1.8"
+            android:background="@drawable/bg_input"
+            android:padding="18dp"
+            android:gravity="top"
+            android:inputType="textMultiLine"
+            android:scrollbars="vertical"
+            android:overScrollMode="never"
+            android:layout_marginBottom="12dp" />
+
+        <!-- 字数统计和时长预估 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:background="#08FFFFFF">
+
+            <TextView
+                android:id="@+id/char_count"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0 字"
+                android:textColor="#636366"
+                android:textSize="13sp" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+
+            <!-- 时长预估 -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <ImageView
+                    android:layout_width="14dp"
+                    android:layout_height="14dp"
+                    android:src="@drawable/ic_clock"
+                    android:tint="#E8A838" />
+
+                <TextView
+                    android:id="@+id/time_estimate"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="~0 分钟"
+                    android:textColor="#E8A838"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:layout_marginStart="6dp" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

@@ -1,137 +1,143 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
+<androidx.coordinatorlayout.widget.CoordinatorLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:background="@color/tp_bg"
-    android:paddingHorizontal="16dp"
-    android:paddingTop="12dp"
-    android:paddingBottom="16dp">
+    android:background="#0A0A0B"
+    android:fitsSystemWindows="true">
 
-    <!-- 稿件卡片：weight=1 在普通 LinearLayout 里才能正确撑满剩余高度 -->
-    <com.google.android.material.card.MaterialCardView
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:layout_marginBottom="12dp"
-        app:cardBackgroundColor="@color/tp_surface"
-        app:cardCornerRadius="10dp"
-        app:cardElevation="0dp"
-        app:strokeColor="@color/tp_surface_stroke"
-        app:strokeWidth="1dp">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:orientation="vertical"
-            android:padding="14dp">
-
-            <!-- 卡片顶栏 -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="32dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="稿件"
-                    android:textColor="@color/tp_text_high"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/tv_char_count"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="0 字"
-                    android:textColor="@color/tp_text_low"
-                    android:textSize="12sp" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btn_paste"
-                    style="@style/Widget.Material3.Button.TextButton"
-                    android:layout_width="wrap_content"
-                    android:layout_height="32dp"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:minWidth="0dp"
-                    android:text="粘贴"
-                    android:textSize="13sp"
-                    android:textColor="@color/tp_primary"
-                    android:paddingStart="10dp"
-                    android:paddingEnd="0dp" />
-            </LinearLayout>
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:background="@color/tp_divider"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp" />
-
-            <!-- 稿件输入区：撑满卡片剩余高度，EditText 自身滚动 -->
-            <EditText
-                android:id="@+id/script_input"
-                android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1"
-                android:background="@null"
-                android:gravity="top"
-                android:hint="在此输入稿件内容…"
-                android:inputType="textMultiLine|textCapSentences"
-                android:overScrollMode="never"
-                android:scrollbars="vertical"
-                android:textColor="@color/tp_text_high"
-                android:textColorHint="@color/tp_text_hint"
-                android:textSize="16sp"
-                android:lineSpacingMultiplier="1.7" />
-
-        </LinearLayout>
-    </com.google.android.material.card.MaterialCardView>
-
-    <!-- 底部操作区：横向并排，始终固定在底部 -->
+    <!-- 顶部标题栏（精简版） -->
     <LinearLayout
+        android:id="@+id/header_section"
         android:layout_width="match_parent"
-        android:layout_height="50dp"
-        android:orientation="horizontal">
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingTop="24dp"
+        android:paddingBottom="16dp"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_video"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:insetTop="0dp"
-            android:insetBottom="0dp"
-            android:layout_marginEnd="8dp"
-            android:text="视频录制"
-            android:textColor="@color/tp_primary"
-            android:textSize="14sp"
-            app:strokeColor="@color/tp_primary"
-            app:strokeWidth="1.5dp"
-            app:cornerRadius="8dp"
-            app:rippleColor="@color/tp_primary_ripple" />
+        <TextView
+            android:id="@+id/header_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="文稿"
+            android:textColor="#F5F5F7"
+            android:textSize="24sp"
+            android:fontFamily="serif"
+            android:textStyle="bold" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_float"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="2"
-            android:insetTop="0dp"
-            android:insetBottom="0dp"
-            android:text="启动悬浮提词器"
-            android:textColor="#FFFFFF"
-            android:textSize="14sp"
-            android:textStyle="bold"
-            app:backgroundTint="@color/tp_primary"
-            app:cornerRadius="8dp"
-            app:rippleColor="#33FFFFFF" />
+        <!-- 文稿数量标签 -->
+        <LinearLayout
+            android:id="@+id/count_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/bg_count_badge">
 
+            <ImageView
+                android:layout_width="12dp"
+                android:layout_height="12dp"
+                android:src="@drawable/ic_document"
+                android:tint="#E8A838" />
+
+            <TextView
+                android:id="@+id/count_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0 个"
+                android:textColor="#E8A838"
+                android:textSize="12sp"
+                android:layout_marginStart="6dp" />
+        </LinearLayout>
+
+        <!-- 分割线 -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="16dp"
+            android:background="#1A1A1A" />
     </LinearLayout>
 
-</LinearLayout>
+    <!-- 文稿列表 -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/script_list"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_marginTop="100dp"
+        android:layout_marginBottom="80dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="8dp"
+        android:clipToPadding="false"
+        android:overScrollMode="never" />
+
+    <!-- 空状态提示 -->
+    <LinearLayout
+        android:id="@+id/empty_state"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:layout_gravity="center"
+        android:visibility="gone">
+
+        <ImageView
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:src="@drawable/ic_document"
+            android:tint="#636366"
+            android:alpha="0.3" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="还没有文稿"
+            android:textColor="#A1A1A6"
+            android:textSize="16sp"
+            android:layout_marginTop="16dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="点击下方按钮创建"
+            android:textColor="#636366"
+            android:textSize="12sp"
+            android:layout_marginTop="6dp" />
+    </LinearLayout>
+
+    <!-- 底部操作栏 -->
+    <FrameLayout
+        android:id="@+id/bottom_bar"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:layout_gravity="bottom"
+        android:background="#0A0A0B">
+
+        <!-- 新增按钮 (FAB) -->
+        <FrameLayout
+            android:id="@+id/fab_add"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:layout_gravity="center"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="@drawable/bg_fab_add">
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_add"
+                android:tint="#0A0A0B" />
+        </FrameLayout>
+    </FrameLayout>
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

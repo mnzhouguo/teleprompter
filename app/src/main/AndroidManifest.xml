@@ -27,7 +27,7 @@
 
     <application
         android:label="智能提词器"
-        android:theme="@style/Theme.Material3.DayNight">
+        android:theme="@style/Theme.Material3.DayNight.NoActionBar">
 
         <activity
             android:name=".MainActivity"
@@ -41,6 +41,18 @@
         <!-- 视频录制提词器:内嵌摄像头预览 + 题词器叠加层 -->
         <activity
             android:name=".VideoRecordActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <!-- 编辑/新增文稿页面 -->
+        <activity
+            android:name=".ScriptEditActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <!-- 浏览文稿页面 -->
+        <activity
+            android:name=".ScriptViewActivity"
             android:exported="false"
             android:screenOrientation="portrait" />
 

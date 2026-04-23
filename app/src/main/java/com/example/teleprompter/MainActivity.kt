@@ -1,211 +1,160 @@
 package com.example.teleprompter
 
-import android.Manifest
-import android.content.ClipboardManager
-import android.content.Context
+import android.app.Activity
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.net.Uri
-import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
-import android.text.Editable
-import android.text.TextWatcher
+import android.view.View
+import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.example.teleprompter.databinding.ActivityMainBinding
 
+/**
+ * 首页 - 提词文稿列表
+ */
 class MainActivity : AppCompatActivity() {
 
-    private val doubaoAppId = "9578212060"
-    private val doubaoAccessToken = "BVI-b4p-L8ZP_q0iek85BCWDFbJ5-3hc"
-
     private lateinit var binding: ActivityMainBinding
+    private lateinit var adapter: ScriptListAdapter
 
-    // 从悬浮窗设置页返回后，在 onResume 里重新检查一次（时序保护）
-    private var pendingOverlayCheck = false
+    // 演示数据（后续替换为数据库）
+    private val demoScripts = mutableListOf(
+        Script(
+            id = 1,
+            title = "产品介绍视频脚本",
+            content = "大家好，欢迎来到我们的产品发布会。今天，我要向大家介绍一款革命性的智能设备——它将彻底改变您的视频创作体验。",
+            createdAt = System.currentTimeMillis()
+        ),
+        Script(
+            id = 2,
+            title = "Vlog 日常分享",
+            content = "嘿大家好，今天又是美好的一天。我想和大家分享一下我最近的生活，最近我在尝试一款新的智能提词器应用，效果非常好。",
+            createdAt = System.currentTimeMillis() - 24 * 60 * 60 * 1000
+        ),
+        Script(
+            id = 3,
+            title = "直播带货话术",
+            content = "亲爱的家人们好！今天给大家带来的是我们精心挑选的优质商品，限时特价，不要错过这个机会哦！",
+            createdAt = System.currentTimeMillis() - 3 * 24 * 60 * 60 * 1000
+        )
+    )
 
-    // 麦克风权限：若被"不再询问"，跳到 App 设置页
-    private val micPermLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            checkOverlayAndStart()
-        } else if (!shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO)) {
-            toast("请在「设置 → 应用 → 权限」中手动开启麦克风")
-            openAppSettings()
-        } else {
-            toast("需要麦克风权限才能语音同步")
-        }
-    }
-
-    // 悬浮窗设置页返回：不在此回调直接判定，交给 onResume 再查一次
-    private val overlayPermLauncher = registerForActivityResult(
+    // 编辑Activity结果回调
+    private val editLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
-    ) {
-        pendingOverlayCheck = true   // onResume 会紧接着触发
-    }
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val data = result.data ?: return@registerForActivityResult
+            val id = data.getLongExtra(ScriptEditActivity.EXTRA_SCRIPT_ID, 0)
+            val title = data.getStringExtra(ScriptEditActivity.EXTRA_SCRIPT_TITLE) ?: ""
+            val content = data.getStringExtra(ScriptEditActivity.EXTRA_SCRIPT_CONTENT) ?: ""
+            val isNew = data.getBooleanExtra(ScriptEditActivity.EXTRA_IS_NEW, true)
 
-    // 通知权限（Android 13+，前台服务必需）
-    private val notifPermLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) {
-        // 无论是否授权都继续，通知权限不阻断主流程
-        checkMicAndStart()
+            val script = Script(id = id, title = title, content = content)
+
+            if (isNew) {
+                adapter.addScript(script)
+                updateCountBadge()
+            } else {
+                adapter.updateScript(script)
+            }
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        binding.scriptInput.setText(DEMO_SCRIPT)
-
-        binding.scriptInput.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: Editable?) {
-                binding.tvCharCount.text = "${s?.length ?: 0} 字"
-            }
-        })
-        binding.tvCharCount.text = "${DEMO_SCRIPT.length} 字"
-
-        binding.btnFloat.setOnClickListener { onStartClicked() }
-        binding.btnVideo.setOnClickListener { launchVideoRecord() }
-        binding.btnPaste.setOnClickListener { pasteFromClipboard() }
+        setupRecyclerView()
+        setupFab()
+        updateCountBadge()
     }
 
-    override fun onResume() {
-        super.onResume()
-        // 从悬浮窗设置页返回后，延迟一帧再查，避免系统状态未刷新
-        if (pendingOverlayCheck) {
-            pendingOverlayCheck = false
-            binding.scriptInput.post {
-                if (Settings.canDrawOverlays(this)) {
-                    launchFloating()
-                } else {
-                    toast("悬浮窗权限未开启，请重试")
-                }
-            }
+    private fun setupRecyclerView() {
+        adapter = ScriptListAdapter(
+            scripts = demoScripts,
+            onEditClick = { script -> launchEditActivity(script) },
+            onDeleteClick = { script -> deleteScript(script) },
+            onRecordClick = { script -> launchRecord(script) },
+            onViewClick = { script -> launchViewActivity(script) }  // 双击查看
+        )
+
+        binding.scriptList.layoutManager = LinearLayoutManager(this)
+        binding.scriptList.adapter = adapter
+
+        // 空状态显示
+        updateEmptyState()
+    }
+
+    private fun launchViewActivity(script: Script) {
+        val intent = Intent(this, ScriptViewActivity::class.java).apply {
+            putExtra(ScriptViewActivity.EXTRA_TITLE, script.title)
+            putExtra(ScriptViewActivity.EXTRA_CONTENT, script.content)
+        }
+        startActivity(intent)
+    }
+
+    private fun setupFab() {
+        binding.fabAdd.setOnClickListener {
+            launchEditActivity(null) // 新增模式
         }
     }
 
-    private fun onStartClicked() {
-        // Android 13+ 先申请通知权限，再走麦克风→悬浮窗流程
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val notifGranted = ContextCompat.checkSelfPermission(
-                this, Manifest.permission.POST_NOTIFICATIONS
-            ) == PackageManager.PERMISSION_GRANTED
-            if (!notifGranted) {
-                notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                return
-            }
-        }
-        checkMicAndStart()
-    }
-
-    private fun checkMicAndStart() {
-        val micGranted = ContextCompat.checkSelfPermission(
-            this, Manifest.permission.RECORD_AUDIO
-        ) == PackageManager.PERMISSION_GRANTED
-
-        if (micGranted) {
-            checkOverlayAndStart()
-        } else {
-            micPermLauncher.launch(Manifest.permission.RECORD_AUDIO)
-        }
-    }
-
-    private fun checkOverlayAndStart() {
-        if (Settings.canDrawOverlays(this)) {
-            launchFloating()
-        } else {
-            pendingOverlayCheck = false
-            overlayPermLauncher.launch(
-                Intent(
-                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:$packageName")
-                )
-            )
-            // MIUI 设备上标准设置页可能不生效，给出更明确的提示
-            val isMiui = !getSystemProperty("ro.miui.ui.version.name").isNullOrEmpty()
-            if (isMiui) {
-                toast("MIUI：请在「更多权限 → 显示悬浮窗」中开启，然后返回")
+    private fun launchEditActivity(script: Script?) {
+        val intent = Intent(this, ScriptEditActivity::class.java).apply {
+            if (script != null) {
+                // 编辑模式
+                putExtra(ScriptEditActivity.EXTRA_IS_NEW, false)
+                putExtra(ScriptEditActivity.EXTRA_SCRIPT_ID, script.id)
+                putExtra(ScriptEditActivity.EXTRA_SCRIPT_TITLE, script.title)
+                putExtra(ScriptEditActivity.EXTRA_SCRIPT_CONTENT, script.content)
             } else {
-                toast("请开启「显示在其他应用上层」后返回")
+                // 新增模式
+                putExtra(ScriptEditActivity.EXTRA_IS_NEW, true)
             }
         }
+        editLauncher.launch(intent)
     }
 
-    private fun getSystemProperty(key: String): String? = try {
-        val c = Class.forName("android.os.SystemProperties")
-        c.getMethod("get", String::class.java).invoke(null, key) as? String
-    } catch (_: Exception) { null }
+    private fun deleteScript(script: Script) {
+        // 演示：直接删除（后续添加确认对话框和数据库操作）
+        adapter.removeScript(script)
+        updateCountBadge()
+        updateEmptyState()
+        Toast.makeText(this, "已删除: ${script.title}", Toast.LENGTH_SHORT).show()
+    }
 
-    private fun launchFloating() {
-        val script = binding.scriptInput.text.toString()
-        if (script.isBlank()) { toast("请先输入稿件"); return }
-
-        val intent = Intent(this, FloatingService::class.java).apply {
-            putExtra(FloatingService.EXTRA_SCRIPT, script)
-            putExtra(FloatingService.EXTRA_APP_ID, doubaoAppId)
-            putExtra(FloatingService.EXTRA_ACCESS_TOKEN, doubaoAccessToken)
+    private fun launchRecord(script: Script) {
+        // 跳转到视频录制页面，传入文稿内容
+        val intent = Intent(this, VideoRecordActivity::class.java).apply {
+            putExtra(VideoRecordActivity.EXTRA_SCRIPT, script.content)
+            // ASR credentials (从原MainActivity移过来)
+            putExtra(VideoRecordActivity.EXTRA_APP_ID, "9578212060")
+            putExtra(VideoRecordActivity.EXTRA_ACCESS_TOKEN, "BVI-b4p-L8ZP_q0iek85BCWDFbJ5-3hc")
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent)
-        else startService(intent)
-
-        toast("已启动，可切到相机 App")
-        moveTaskToBack(true)
+        startActivity(intent)
+        Toast.makeText(this, "开始录制: ${script.title}", Toast.LENGTH_SHORT).show()
     }
 
-    private fun launchVideoRecord() {
-        val script = binding.scriptInput.text.toString()
-        if (script.isBlank()) { toast("请先输入稿件"); return }
-        startActivity(
-            Intent(this, VideoRecordActivity::class.java).apply {
-                putExtra(VideoRecordActivity.EXTRA_SCRIPT, script)
-                putExtra(VideoRecordActivity.EXTRA_APP_ID, doubaoAppId)
-                putExtra(VideoRecordActivity.EXTRA_ACCESS_TOKEN, doubaoAccessToken)
-            }
-        )
+    private fun updateCountBadge() {
+        val count = adapter.itemCount
+        binding.countText.text = "$count 个文稿"
+        updateEmptyState()
     }
 
-    private fun pasteFromClipboard() {
-        val cb = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val text = cb.primaryClip?.getItemAt(0)?.coerceToText(this)?.toString()
-        if (!text.isNullOrBlank()) {
-            binding.scriptInput.setText(text)
-            binding.scriptInput.setSelection(text.length)
+    private fun updateEmptyState() {
+        if (adapter.itemCount == 0) {
+            binding.emptyState.visibility = View.VISIBLE
+            binding.scriptList.visibility = View.GONE
         } else {
-            toast("剪贴板没有文本内容")
+            binding.emptyState.visibility = View.GONE
+            binding.scriptList.visibility = View.VISIBLE
         }
-    }
-
-    private fun openAppSettings() {
-        startActivity(
-            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                .setData(Uri.parse("package:$packageName"))
-        )
-    }
-
-    private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
-
-    companion object {
-        private val DEMO_SCRIPT = """
-大家好，欢迎来到今天的视频。今天我们要聊的主题，是一款能够跟随你说话速度自动滚动的智能提词器。
-
-在过去，主持人和演讲者需要花费大量时间背稿子。传统提词器虽然可以显示文字，但只能按照预设的固定速度滚动，说话者必须迁就机器的节奏，稍有停顿就会跟丢位置，使用体验非常不友好。
-
-现在，随着人工智能和语音识别技术的快速发展，一种全新的智能提词器出现了。它的核心原理是这样的：当你开口说话，麦克风实时采集声音，将音频数据通过网络发送到云端的语音识别服务器。服务器利用深度学习模型，在毫秒级别内将语音转换为文字，并把识别结果实时推送回你的设备。
-
-设备收到识别文字之后，通过一套文本对齐算法，在原始稿件中快速定位你当前读到的位置，然后驱动屏幕平滑地滚动过去，让正在朗读的段落始终保持在屏幕中央。不管你说话快一点还是慢一点，临时停顿还是重复一句，提词器都会紧跟你的节奏，而不是让你跟着机器走。
-
-这种技术带来的改变是非常直观的。录制视频时，你只需要自然地说话，不需要刻意记忆稿件，也不需要担心页面跟不上。整个表达过程更加从容，观众看到的画面也更加自然生动。
-
-感谢大家收看本期视频，如果你觉得有帮助，欢迎点赞关注，我们下期再见！
-        """.trimIndent()
     }
 }
