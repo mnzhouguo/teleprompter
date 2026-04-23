@@ -4,72 +4,76 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-智能提词器 (Smart Teleprompter) - An Android app that displays a floating teleprompter overlay synced to the user's voice via real-time ASR (Automatic Speech Recognition). Two modes:
-1. **Floating mode**: System-level overlay floats over any app (camera, video apps)
-2. **Video record mode**: In-app camera preview with embedded teleprompter for recording videos directly
+智能提词器 (Smart Teleprompter) - An Android app for managing and recording teleprompter scripts with voice-synced scrolling. The app has two main flows:
+
+1. **Script Management Flow**: MainActivity → ScriptEditActivity (create/edit) → ScriptViewActivity (view)
+2. **Recording Flow**: MainActivity → VideoRecordActivity (in-app recording with teleprompter overlay)
+
+The teleprompter uses real-time ASR (Automatic Speech Recognition) to sync scrolling with the user's voice.
 
 ## Build Commands
 
 ```bash
 # Gradle wrapper is missing; use the cached binary directly
 GRADLE="/c/Users/mnzho/.gradle/wrapper/dists/gradle-8.2-bin/bbg7u40eoinfdyxsxr3z4i7ta/gradle-8.2/bin/gradle"
-ADB="/c/Users/mnzho/AppData/Local/Android/Sdk/platform-tools/adb.exe"
 
-# Build debug APK only
+# Build debug APK
 "$GRADLE" assembleDebug
 
-# Build + install + launch on connected device (preferred)
+# Build + install + launch (preferred)
 bash install.sh
 
-# APK output location
+# APK location
 app/build/outputs/apk/debug/app-debug.apk
 ```
 
-## Deploy to Device
-
-After every code change, run `bash install.sh` to build, install, and launch on the connected Android device.
-The script: builds the APK → installs via ADB → grants SYSTEM_ALERT_WINDOW → launches MainActivity.
-
-Device tested: `19be32d` (connected via USB, ADB debugging enabled).
-
 ## Architecture
 
-The app follows a pipeline architecture: **AudioCapture → DoubaoAsrClient → VoiceSyncEngine → ScrollController**
-
-### Core Components
+### Script Management (New Flow)
 
 | Component | Role |
 |-----------|------|
-| `MainActivity` | Entry point; handles permissions (RECORD_AUDIO, SYSTEM_ALERT_WINDOW, POST_NOTIFICATIONS); launches FloatingService or VideoRecordActivity |
-| `FloatingService` | Foreground service (`foregroundServiceType="microphone"`); displays system-level floating window; orchestrates the full pipeline |
-| `VideoRecordActivity` | CameraX-based video recording with embedded teleprompter overlay |
-| `AudioCapture` | `AudioRecord`-based audio capture (16kHz mono PCM); auto-detects Bluetooth SCO headset with fallback to phone mic; delivers 100ms chunks |
-| `DoubaoAsrClient` | WebSocket client for ByteDance/Doubao ASR; uses custom binary protocol (4-byte header + gzip payload) |
-| `VoiceSyncEngine` | Pinyin-based text alignment; matches ASR output to script position with Chinese homophone tolerance |
-| `ScrollController` | Spring animation (`DynamicAnimation`) for smooth scrolling; keeps current line at 1/3 viewport height |
+| `MainActivity` | Script list with cards; single-click selects card (shows edit/delete/record actions), double-click opens view page |
+| `Script` | Data model with title, content, charCount, estimatedMinutes, preview, createdTimeText |
+| `ScriptListAdapter` | RecyclerView adapter; handles selection state and double-click detection (300ms interval) |
+| `ScriptEditActivity` | Create/edit scripts; real-time char count and duration estimate (200 chars/min) |
+| `ScriptViewActivity` | Pure view mode; maximized content display with minimal header |
+
+### Recording Pipeline
+
+**AudioCapture → DoubaoAsrClient → VoiceSyncEngine → ScrollController**
+
+| Component | Role |
+|-----------|------|
+| `VideoRecordActivity` | CameraX video recording with embedded teleprompter overlay; zoom controls (0.8x-2.0x) |
+| `FloatingService` | Foreground service for system-level overlay mode (future use) |
+| `AudioCapture` | `AudioRecord` 16kHz mono PCM; Bluetooth SCO auto-detection |
+| `DoubaoAsrClient` | WebSocket client for ByteDance ASR; binary protocol `[4B header][gzip payload]` |
+| `VoiceSyncEngine` | Pinyin-based text alignment with Chinese homophone tolerance |
+| `ScrollController` | Spring animation for smooth scrolling |
 
 ### Key Technical Details
 
-- **Foreground Service Required**: Android 12+ blocks background mic access; `FloatingService` must be foreground with `foregroundServiceType="microphone"` declared in manifest
-- **Overlay Type**: Uses `TYPE_APPLICATION_OVERLAY` (API 26+ only)
-- **ASR Protocol**: ByteDance binary frame format - `[4B header][4B payload size][gzip payload]`; header byte 1 encodes message type (0x01=full request, 0x02=audio, 0x09=response, 0x0F=error)
-- **Bluetooth SCO**: Connects via `AudioManager.startBluetoothSco()` with 4-second timeout; uses `VOICE_COMMUNICATION` audio source when connected
+- **Foreground Service**: `foregroundServiceType="microphone"` required for Android 12+ background mic
+- **Overlay**: `TYPE_APPLICATION_OVERLAY` (API 26+)
+- **ASR Protocol**: Header byte 1 = message type (0x01=request, 0x02=audio, 0x09=response)
+- **Zoom**: CameraX supports 0.8x-2.0x digital zoom via `camera.cameraControl.setLinearZoom()`
 
 ## Dependencies
 
 - OkHttp 4.12.0 - WebSocket ASR client
-- Kotlinx Coroutines 1.7.3 - Async audio/network handling
-- DynamicAnimation 1.0.0 - Spring-based smooth scrolling
-- Pinyin4j 2.5.1 - Chinese pinyin conversion for text alignment
-- CameraX 1.3.1 - Video recording with camera preview
+- Kotlinx Coroutines 1.7.3 - Async handling
+- DynamicAnimation 1.0.0 - Spring scrolling
+- Pinyin4j 2.5.1 - Chinese pinyin for text alignment
+- CameraX 1.3.1 - Video recording
 
-## ASR Configuration
+## UI Design Files
 
-The app uses ByteDance/Doubao cloud ASR. Credentials are stored in `MainActivity`:
-- `doubaoAppId` - Application ID from ByteDance console
-- `doubaoAccessToken` - Access token
+`design/` directory contains HTML mockups:
+- `home-ui-design.html` - Script list page design
+- `edit-ui-design.html` - Edit page design
 
-For production, these should be externalized (e.g., secured config or injected at build time).
+These can be opened in browser for visual reference during UI changes.
 
 ## Behavioral guidelines
 Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
