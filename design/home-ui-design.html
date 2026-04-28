@@ -9,21 +9,20 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@300;400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-primary: #0A0A0B;
-      --bg-secondary: #131315;
-      --bg-card: #1A1A1D;
-      --bg-card-hover: #222225;
-      --text-primary: #F5F5F7;
-      --text-secondary: #A1A1A6;
-      --text-muted: #636366;
-      --accent-amber: #E8A838;
-      --accent-amber-glow: rgba(232, 168, 56, 0.15);
-      --accent-red: #FF453A;
-      --accent-teal: #32D7A0;
-      --border-subtle: rgba(255, 255, 255, 0.06);
-      --border-accent: rgba(232, 168, 56, 0.3);
-      --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.4);
-      --shadow-glow: 0 0 40px rgba(232, 168, 56, 0.1);
+      /* 黑白灰核心 + 红色点缀 */
+      --bg-primary: #0A0A0A;
+      --bg-secondary: #141414;
+      --bg-card: #1A1A1A;
+      --bg-card-hover: #222222;
+      --bg-button: #2A2A2A;
+      --text-primary: #FFFFFF;
+      --text-secondary: #888888;
+      --text-muted: #555555;
+      --accent-red: #FF3B30; /* 仅点缀 */
+      --accent-red-glow: rgba(255, 59, 48, 0.08);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-light: rgba(255, 255, 255, 0.15);
+      --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.5);
       --radius-sm: 8px;
       --radius-md: 16px;
       --radius-lg: 24px;
@@ -53,8 +52,8 @@
       position: relative;
       border-radius: 40px;
       box-shadow:
-        0 0 0 12px #1C1C1E,
-        0 0 0 14px #2C2C2E,
+        0 0 0 12px #1C1C1C,
+        0 0 0 14px #2C2C2C,
         0 50px 100px rgba(0, 0, 0, 0.8);
       overflow: hidden;
     }
@@ -67,7 +66,7 @@
       padding: 14px 28px 10px;
       font-size: 14px;
       font-weight: 500;
-      background: linear-gradient(to bottom, rgba(10,10,11,0.9), transparent);
+      background: linear-gradient(to bottom, rgba(10,10,10,0.9), transparent);
     }
 
     .status-bar__time {
@@ -106,18 +105,7 @@
       font-size: 32px;
       font-weight: 700;
       letter-spacing: 2px;
-      margin-bottom: 4px;
-      background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-amber) 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    .header__subtitle {
-      font-size: 13px;
-      color: var(--text-muted);
-      font-weight: 300;
-      letter-spacing: 0.5px;
+      color: var(--text-primary);
     }
 
     .header__count {
@@ -126,11 +114,11 @@
       gap: 6px;
       margin-top: 16px;
       padding: 6px 12px;
-      background: var(--accent-amber-glow);
-      border: 1px solid var(--border-accent);
+      background: var(--accent-red-glow);
+      border: 1px solid rgba(255, 59, 48, 0.3);
       border-radius: 20px;
       font-size: 12px;
-      color: var(--accent-amber);
+      color: var(--accent-red);
       font-weight: 500;
     }
 
@@ -155,7 +143,6 @@
     .script-card:nth-child(1) { animation-delay: 0.1s; }
     .script-card:nth-child(2) { animation-delay: 0.2s; }
     .script-card:nth-child(3) { animation-delay: 0.3s; }
-    .script-card:nth-child(4) { animation-delay: 0.4s; }
 
     @keyframes cardSlideIn {
       from {
@@ -175,7 +162,7 @@
 
     /* Selected state */
     .script-card.selected {
-      border-color: var(--border-accent);
+      border-color: var(--border-light);
       background: var(--bg-card-hover);
     }
 
@@ -185,7 +172,6 @@
 
     .script-card__content {
       padding: 20px;
-      position: relative;
     }
 
     .script-card__header {
@@ -210,7 +196,7 @@
       align-items: center;
       gap: 4px;
       padding: 4px 10px;
-      background: rgba(255, 255, 255, 0.05);
+      background: rgba(255, 255, 255, 0.06);
       border-radius: 12px;
       font-size: 11px;
       color: var(--text-secondary);
@@ -254,7 +240,7 @@
       opacity: 0.6;
     }
 
-    /* Action Buttons */
+    /* Action Buttons - 灰色核心，红色点缀录制 */
     .script-card__actions {
       display: none;
       border-top: 1px solid var(--border-subtle);
@@ -290,35 +276,43 @@
     .script-card__action svg {
       width: 18px;
       height: 18px;
-      transition: transform 0.2s ease;
     }
 
     .script-card__action:active {
-      background: rgba(255, 255, 255, 0.03);
+      background: rgba(255, 255, 255, 0.05);
     }
 
     .script-card__action--edit:active {
-      color: var(--accent-amber);
+      color: var(--text-primary);
     }
 
     .script-card__action--delete:active {
       color: var(--accent-red);
     }
 
+    /* 录制按钮 - 红色圆点点缀 */
     .script-card__action--record {
-      color: var(--accent-teal);
+      color: var(--text-secondary);
+    }
+
+    .script-card__action--record::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      background: var(--accent-red);
+      border-radius: 50%;
+      margin-right: 2px;
     }
 
     .script-card__action--record:active {
-      color: #28B389;
+      color: var(--text-primary);
     }
 
     .script-card__action--record svg {
-      width: 16px;
-      height: 16px;
+      display: none;
     }
 
-    /* FAB */
+    /* FAB - 灰色背景 + 红色边框 + 红色图标 */
     .fab {
       position: absolute;
       bottom: 34px;
@@ -327,77 +321,25 @@
       width: 64px;
       height: 64px;
       border-radius: 50%;
-      background: linear-gradient(135deg, var(--accent-amber) 0%, #D4922E 100%);
-      border: none;
-      box-shadow:
-        0 4px 20px rgba(232, 168, 56, 0.4),
-        0 0 0 4px rgba(232, 168, 56, 0.1);
+      background: var(--bg-button);
+      border: 1px solid var(--accent-red);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      animation: fabPulse 2s ease-in-out infinite;
-    }
-
-    @keyframes fabPulse {
-      0%, 100% {
-        box-shadow:
-          0 4px 20px rgba(232, 168, 56, 0.4),
-          0 0 0 4px rgba(232, 168, 56, 0.1);
-      }
-      50% {
-        box-shadow:
-          0 4px 24px rgba(232, 168, 56, 0.5),
-          0 0 0 8px rgba(232, 168, 56, 0.05);
-      }
     }
 
     .fab:active {
       transform: translateX(-50%) scale(0.92);
+      background: var(--bg-card-hover);
     }
 
     .fab svg {
-      width: 28px;
-      height: 28px;
-      color: var(--bg-primary);
-    }
-
-    /* Empty State */
-    .empty-state {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 60px 40px;
-      text-align: center;
-      animation: fadeIn 0.5s ease-out;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-
-    .empty-state__icon {
-      width: 80px;
-      height: 80px;
-      margin-bottom: 20px;
-      opacity: 0.3;
-      color: var(--text-muted);
-    }
-
-    .empty-state__title {
-      font-size: 18px;
-      font-weight: 500;
-      color: var(--text-secondary);
-      margin-bottom: 8px;
-    }
-
-    .empty-state__desc {
-      font-size: 13px;
-      color: var(--text-muted);
-      line-height: 1.6;
+      width: 24px;
+      height: 24px;
+      color: var(--accent-red);
     }
 
     /* Home Indicator */
@@ -420,7 +362,7 @@
       right: 0;
       bottom: 0;
       pointer-events: none;
-      opacity: 0.015;
+      opacity: 0.02;
       background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%' height='100%' filter='url(%23noise)'/%3E%3C/svg%3E");
     }
   </style>
@@ -449,16 +391,13 @@
 
     <!-- Header -->
     <div class="header">
-      <h1 class="header__title">提词文稿</h1>
-      <p class="header__subtitle">Scripts</p>
+      <h1 class="header__title">文稿</h1>
       <div class="header__count">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
           <polyline points="14 2 14 8 20 8"/>
-          <line x1="16" y1="13" x2="8" y2="13"/>
-          <line x1="16" y1="17" x2="8" y2="17"/>
         </svg>
-        3 个文稿
+        3 个
       </div>
     </div>
 
@@ -492,7 +431,7 @@
                 <line x1="8" y1="2" x2="8" y2="6"/>
                 <line x1="3" y1="10" x2="21" y2="10"/>
               </svg>
-              创建于 今天
+              今天
             </span>
           </div>
         </div>
@@ -508,8 +447,6 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="3 6 5 6 21 6"/>
               <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-              <line x1="10" y1="11" x2="10" y2="17"/>
-              <line x1="14" y1="11" x2="14" y2="17"/>
             </svg>
             删除
           </button>
@@ -550,7 +487,7 @@
                 <line x1="8" y1="2" x2="8" y2="6"/>
                 <line x1="3" y1="10" x2="21" y2="10"/>
               </svg>
-              创建于 昨天
+              昨天
             </span>
           </div>
         </div>
@@ -566,8 +503,6 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="3 6 5 6 21 6"/>
               <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-              <line x1="10" y1="11" x2="10" y2="17"/>
-              <line x1="14" y1="11" x2="14" y2="17"/>
             </svg>
             删除
           </button>
@@ -593,7 +528,7 @@
               ~5分钟
             </div>
           </div>
-          <p class="script-card__preview">亲爱的家人们好！今天给大家带来的是我们精心挑选的优质商品，限时特价...</p>
+          <p class="script-card__preview">亲爱的家人们好！今天给大家带来的是我们精心挑选的优质商品...</p>
           <div class="script-card__meta">
             <span class="script-card__meta-item">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -608,7 +543,7 @@
                 <line x1="8" y1="2" x2="8" y2="6"/>
                 <line x1="3" y1="10" x2="21" y2="10"/>
               </svg>
-              创建于 3天前
+              3天前
             </span>
           </div>
         </div>
@@ -624,8 +559,6 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="3 6 5 6 21 6"/>
               <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-              <line x1="10" y1="11" x2="10" y2="17"/>
-              <line x1="14" y1="11" x2="14" y2="17"/>
             </svg>
             删除
           </button>
@@ -641,7 +574,7 @@
 
     <!-- FAB -->
     <button class="fab" aria-label="新增文稿">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <line x1="12" y1="5" x2="12" y2="19"/>
         <line x1="5" y1="12" x2="19" y2="12"/>
       </svg>
@@ -652,76 +585,13 @@
   </div>
 
   <script>
-    // Card selection interaction
     document.querySelectorAll('.script-card').forEach(card => {
       const content = card.querySelector('.script-card__content');
-
-      content.addEventListener('click', function(e) {
-        // Deselect all other cards
+      content.addEventListener('click', function() {
         document.querySelectorAll('.script-card').forEach(c => c.classList.remove('selected'));
-
-        // Select this card
         card.classList.add('selected');
       });
     });
-
-    // Action button interactions
-    document.querySelectorAll('.script-card__action').forEach(btn => {
-      btn.addEventListener('click', function(e) {
-        e.stopPropagation(); // Prevent card selection toggle
-
-        const action = this.classList.contains('script-card__action--edit') ? 'edit' :
-                       this.classList.contains('script-card__action--delete') ? 'delete' : 'record';
-
-        const card = this.closest('.script-card');
-        const title = card.querySelector('.script-card__title').textContent;
-
-        if (action === 'edit') {
-          alert(`跳转到编辑页面: ${title}`);
-        } else if (action === 'delete') {
-          alert(`删除文稿: ${title}`);
-        } else if (action === 'record') {
-          alert(`开始录制: ${title}`);
-        }
-
-        // Ripple effect
-        const ripple = document.createElement('span');
-        ripple.style.cssText = `
-          position: absolute;
-          background: rgba(255,255,255,0.1);
-          border-radius: 50%;
-          transform: scale(0);
-          animation: ripple 0.4s ease-out;
-          pointer-events: none;
-        `;
-        const rect = this.getBoundingClientRect();
-        const size = Math.max(rect.width, rect.height);
-        ripple.style.width = ripple.style.height = size + 'px';
-        ripple.style.left = (e.clientX - rect.left - size/2) + 'px';
-        ripple.style.top = (e.clientY - rect.top - size/2) + 'px';
-        this.style.position = 'relative';
-        this.style.overflow = 'hidden';
-        this.appendChild(ripple);
-        setTimeout(() => ripple.remove(), 400);
-      });
-    });
-
-    // FAB click - go to edit page (new mode)
-    document.querySelector('.fab').addEventListener('click', function() {
-      alert('跳转到新增文稿页面');
-    });
-
-    // Add ripple animation
-    const style = document.createElement('style');
-    style.textContent = `
-      @keyframes ripple {
-        to {
-          transform: scale(2);
-          opacity: 0;
-        }
-      }
-    `;
-    document.head.appendChild(style);
   </script>
 </body>
 </html>

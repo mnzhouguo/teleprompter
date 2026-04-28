@@ -9,17 +9,18 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@300;400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-primary: #0A0A0B;
-      --bg-input: #1E1E21;
-      --bg-input-focus: #252528;
-      --text-primary: #F5F5F7;
-      --text-secondary: #A1A1A6;
-      --text-muted: #636366;
-      --text-placeholder: #48484A;
-      --accent-amber: #E8A838;
-      --accent-amber-glow: rgba(232, 168, 56, 0.15);
+      /* 黑白灰核心 + 红色点缀 */
+      --bg-primary: #0A0A0A;
+      --bg-input: #1A1A1A;
+      --bg-input-focus: #222222;
+      --bg-button: #2A2A2A;
+      --text-primary: #FFFFFF;
+      --text-secondary: #888888;
+      --text-muted: #555555;
+      --text-placeholder: #444444;
+      --accent-red: #FF3B30; /* 仅点缀 */
       --border-subtle: rgba(255, 255, 255, 0.08);
-      --border-focus: rgba(232, 168, 56, 0.5);
+      --border-light: rgba(255, 255, 255, 0.15);
       --radius-md: 16px;
       --radius-sm: 8px;
     }
@@ -48,8 +49,8 @@
       position: relative;
       border-radius: 40px;
       box-shadow:
-        0 0 0 12px #1C1C1E,
-        0 0 0 14px #2C2C2E,
+        0 0 0 12px #1C1C1C,
+        0 0 0 14px #2C2C2C,
         0 50px 100px rgba(0, 0, 0, 0.8);
       overflow: hidden;
       display: flex;
@@ -64,7 +65,7 @@
       padding: 14px 28px 10px;
       font-size: 14px;
       font-weight: 500;
-      background: linear-gradient(to bottom, rgba(10,10,11,0.9), transparent);
+      background: linear-gradient(to bottom, rgba(10,10,10,0.9), transparent);
     }
 
     .status-bar__time {
@@ -122,8 +123,8 @@
     }
 
     .nav-bar__back:active {
-      color: var(--accent-amber);
-      background: var(--accent-amber-glow);
+      color: var(--text-primary);
+      background: rgba(255, 255, 255, 0.05);
     }
 
     .nav-bar__title {
@@ -133,33 +134,34 @@
       color: var(--text-primary);
     }
 
+    /* 保存按钮 - 无边框 + 红色图标点缀 */
     .nav-bar__save {
       display: flex;
       align-items: center;
       gap: 6px;
       padding: 10px 18px;
-      background: linear-gradient(135deg, var(--accent-amber) 0%, #D4922E 100%);
+      background: var(--bg-button);
       border: none;
       border-radius: var(--radius-md);
-      color: var(--bg-primary);
+      color: var(--text-primary);
       font-size: 14px;
-      font-weight: 600;
+      font-weight: 500;
       cursor: pointer;
       transition: all 0.2s;
-      box-shadow: 0 2px 12px rgba(232, 168, 56, 0.3);
     }
 
     .nav-bar__save svg {
       width: 16px;
       height: 16px;
+      color: var(--accent-red);
     }
 
     .nav-bar__save:active {
       transform: scale(0.95);
-      box-shadow: 0 2px 8px rgba(232, 168, 56, 0.2);
+      background: var(--bg-input-focus);
     }
 
-    /* Content Area - fills remaining space */
+    /* Content Area */
     .editor-content {
       flex: 1;
       padding: 20px;
@@ -191,12 +193,10 @@
 
     .title-input:focus {
       background: var(--bg-input-focus);
-      border-color: var(--border-focus);
-      box-shadow: 0 0 0 4px var(--accent-amber-glow);
+      border-color: var(--border-light);
     }
 
-    
-    /* Content Editor - fills remaining height */
+    /* Content Editor */
     .content-editor-wrapper {
       flex: 1;
       display: flex;
@@ -228,11 +228,10 @@
 
     .content-editor:focus {
       background: var(--bg-input-focus);
-      border-color: var(--border-focus);
-      box-shadow: 0 0 0 4px var(--accent-amber-glow);
+      border-color: var(--border-light);
     }
 
-    /* Character Counter */
+    /* Character Counter - 灰色核心，红色点缀时长 */
     .char-counter {
       display: flex;
       justify-content: space-between;
@@ -247,18 +246,26 @@
       color: var(--text-muted);
     }
 
+    /* 时长预估 - 红色点缀 */
     .char-counter__estimate {
       display: flex;
       align-items: center;
       gap: 6px;
       font-size: 13px;
-      color: var(--accent-amber);
+      color: var(--text-secondary);
       font-weight: 500;
     }
 
+    .char-counter__estimate::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      background: var(--accent-red);
+      border-radius: 50%;
+    }
+
     .char-counter__estimate svg {
-      width: 14px;
-      height: 14px;
+      display: none;
     }
 
     /* Home Indicator */
@@ -272,9 +279,23 @@
       background: rgba(255, 255, 255, 0.2);
       border-radius: 3px;
     }
+
+    /* Grain Overlay */
+    .grain {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      pointer-events: none;
+      opacity: 0.02;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%' height='100%' filter='url(%23noise)'/%3E%3C/svg%3E");
+    }
   </style>
 </head>
 <body>
+  <div class="grain"></div>
+
   <!-- Phone Frame -->
   <div class="phone-frame">
     <!-- Status Bar -->
@@ -305,7 +326,7 @@
       </button>
       <span class="nav-bar__title">编辑文稿</span>
       <button class="nav-bar__save">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
           <polyline points="17 21 17 13 7 13 7 21"/>
           <polyline points="7 3 7 8 15 8"/>
@@ -324,7 +345,7 @@
         value="产品介绍视频脚本"
       >
 
-      <!-- Content Editor - fills remaining space -->
+      <!-- Content Editor -->
       <div class="content-editor-wrapper">
         <textarea class="content-editor" id="contentEditor" placeholder="在这里输入您的提词内容...">大家好，欢迎来到我们的产品发布会。今天，我要向大家介绍一款革命性的智能设备——它将彻底改变您的视频创作体验。
 
@@ -339,13 +360,7 @@
         <!-- Character Counter -->
         <div class="char-counter">
           <span class="char-counter__count" id="charCount">156 字</span>
-          <span class="char-counter__estimate" id="timeEstimate">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <polyline points="12 6 12 12 16 14"/>
-            </svg>
-            ~1 分钟
-          </span>
+          <span class="char-counter__estimate" id="timeEstimate">~1 分钟</span>
         </div>
       </div>
     </div>
@@ -361,20 +376,14 @@
 
     function updateStats() {
       const chars = contentEditor.value.length;
-      const minutes = Math.ceil(chars / 200); // ~200 chars per minute
+      const minutes = Math.ceil(chars / 200);
 
       charCount.textContent = `${chars} 字`;
-      timeEstimate.innerHTML = `
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <polyline points="12 6 12 12 16 14"/>
-        </svg>
-        ~${minutes} 分钟
-      `;
+      timeEstimate.textContent = `~${minutes} 分钟`;
     }
 
     contentEditor.addEventListener('input', updateStats);
-    updateStats(); // Initial count
+    updateStats();
   </script>
 </body>
 </html>

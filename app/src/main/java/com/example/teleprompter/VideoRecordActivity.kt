@@ -39,7 +39,9 @@ import androidx.camera.video.VideoRecordEvent
 import android.view.Surface
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
+import android.view.WindowManager
 
+@OptIn(ExperimentalCamera2Interop::class)
 class VideoRecordActivity : AppCompatActivity() {
 
     companion object {
@@ -189,14 +191,12 @@ class VideoRecordActivity : AppCompatActivity() {
         checkAndStartCamera()
     }
 
-    @ExperimentalCamera2Interop
     private fun checkAndStartCamera() {
         val missing = listOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
             .filter { ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }
         if (missing.isEmpty()) startCamera() else permLauncher.launch(missing.toTypedArray())
     }
 
-    @ExperimentalCamera2Interop
     private fun startCamera() {
         ProcessCameraProvider.getInstance(this).also { future ->
             future.addListener({
@@ -206,7 +206,6 @@ class VideoRecordActivity : AppCompatActivity() {
         }
     }
 
-    @ExperimentalCamera2Interop
     private fun bindCameraUseCases() {
         val provider = cameraProvider ?: return
         val previewBuilder = Preview.Builder()
@@ -233,7 +232,6 @@ class VideoRecordActivity : AppCompatActivity() {
         }
     }
 
-    @ExperimentalCamera2Interop
     private fun switchCamera() {
         if (isRecording) return
         cameraSelector = if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA)
@@ -266,12 +264,14 @@ class VideoRecordActivity : AppCompatActivity() {
                 when (event) {
                     is VideoRecordEvent.Start -> {
                         isRecording = true
+                        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                         setRecordingUI(true)
                         startTeleprompter()
                         startTimer()
                     }
                     is VideoRecordEvent.Finalize -> {
                         isRecording = false
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                         setRecordingUI(false)
                         stopTeleprompter()
                         stopTimer()
@@ -319,9 +319,14 @@ class VideoRecordActivity : AppCompatActivity() {
             accessToken = accessToken,
             onText = { text, _ ->
                 mainHandler.post {
-                    val pos = syncEngine!!.onAsrIncrement(text)
+                    // 安全检查：录制停止后可能这些对象已被清空
+                    val engine = syncEngine
+                    val controller = scrollController
+                    if (engine == null || controller == null) return@post
+
+                    val pos = engine.onAsrIncrement(text)
                     updateHighlight(pos)
-                    scrollController!!.scrollToChar(pos)
+                    controller.scrollToChar(pos)
                     debugText.text = "「$text」"
                 }
             },

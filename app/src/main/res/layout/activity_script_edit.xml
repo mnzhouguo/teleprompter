@@ -84,13 +84,13 @@
                 android:layout_width="16dp"
                 android:layout_height="16dp"
                 android:src="@drawable/ic_save"
-                android:tint="#0A0A0B" />
+                android:tint="#FF3B30" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="保存"
-                android:textColor="#0A0A0B"
+                android:textColor="#F5F5F7"
                 android:textSize="14sp"
                 android:textStyle="bold"
                 android:layout_marginStart="6dp" />
@@ -185,18 +185,35 @@
                     android:layout_width="14dp"
                     android:layout_height="14dp"
                     android:src="@drawable/ic_clock"
-                    android:tint="#E8A838" />
+                    android:tint="#FF3B30" />
 
                 <TextView
                     android:id="@+id/time_estimate"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="~0 分钟"
-                    android:textColor="#E8A838"
+                    android:textColor="#FF3B30"
                     android:textSize="13sp"
                     android:textStyle="bold"
                     android:layout_marginStart="6dp" />
             </LinearLayout>
         </LinearLayout>
     </LinearLayout>
+
+    <!-- 加载遮罩 -->
+    <FrameLayout
+        android:id="@+id/loading_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#80000000"
+        android:visibility="gone"
+        android:clickable="true"
+        android:focusable="true">
+
+        <ProgressBar
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_gravity="center"
+            android:indeterminateTint="#FF3B30" />
+    </FrameLayout>
 </LinearLayout>

@@ -1,17 +1,20 @@
 package com.example.teleprompter
 
+import android.app.Activity
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
-import android.widget.EditText
-import android.widget.LinearLayout
-import android.widget.TextView
+import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import com.example.teleprompter.databinding.ActivityScriptEditBinding
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
- * 编辑/新增文稿页面
+ * 编辑/新增文稿页面（使用API）
  */
 class ScriptEditActivity : AppCompatActivity() {
 
@@ -33,15 +36,13 @@ class ScriptEditActivity : AppCompatActivity() {
 
         // 获取传入参数
         isNewScript = intent.getBooleanExtra(EXTRA_IS_NEW, true)
-        scriptId = intent.getLongExtra(EXTRA_SCRIPT_ID, System.currentTimeMillis())
+        scriptId = intent.getLongExtra(EXTRA_SCRIPT_ID, 0)
 
         if (!isNewScript) {
-            // 编辑模式：填充已有内容
             binding.navTitle.text = "编辑文稿"
             binding.titleInput.setText(intent.getStringExtra(EXTRA_SCRIPT_TITLE) ?: "")
             binding.contentInput.setText(intent.getStringExtra(EXTRA_SCRIPT_CONTENT) ?: "")
         } else {
-            // 新增模式
             binding.navTitle.text = "新增文稿"
         }
 
@@ -55,7 +56,6 @@ class ScriptEditActivity : AppCompatActivity() {
             saveScript()
         }
 
-        // 实时更新字数统计和时长预估
         setupTextWatcher()
     }
 
@@ -70,8 +70,6 @@ class ScriptEditActivity : AppCompatActivity() {
 
         binding.titleInput.addTextChangedListener(watcher)
         binding.contentInput.addTextChangedListener(watcher)
-
-        // 初始统计
         updateStats()
     }
 
@@ -98,24 +96,40 @@ class ScriptEditActivity : AppCompatActivity() {
             return
         }
 
-        // 创建/更新Script对象
-        val script = Script(
-            id = scriptId,
-            title = title,
-            content = content,
-            createdAt = if (isNewScript) System.currentTimeMillis() else intent.getLongExtra(EXTRA_SCRIPT_ID, System.currentTimeMillis()),
-            updatedAt = System.currentTimeMillis()
-        )
+        // 调用API保存
+        lifecycleScope.launch {
+            binding.loadingOverlay.visibility = View.VISIBLE
+            binding.navSave.isEnabled = false
 
-        // 返回结果给MainActivity（后续会替换为数据库保存）
-        setResult(RESULT_OK, intent.apply {
-            putExtra(EXTRA_SCRIPT_ID, script.id)
-            putExtra(EXTRA_SCRIPT_TITLE, script.title)
-            putExtra(EXTRA_SCRIPT_CONTENT, script.content)
-            putExtra(EXTRA_IS_NEW, isNewScript)
-        })
+            val result = withContext(Dispatchers.IO) {
+                if (isNewScript) {
+                    VideoScriptApiService.createScript(title, content)
+                } else {
+                    VideoScriptApiService.updateScript(scriptId, title, content)
+                }
+            }
 
-        Toast.makeText(this, if (isNewScript) "文稿已创建" else "文稿已更新", Toast.LENGTH_SHORT).show()
-        finish()
+            binding.loadingOverlay.visibility = View.GONE
+            binding.navSave.isEnabled = true
+
+            result.fold(
+                onSuccess = { apiScript ->
+                    setResult(Activity.RESULT_OK)
+                    Toast.makeText(
+                        this@ScriptEditActivity,
+                        if (isNewScript) "文稿已创建" else "文稿已更新",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    finish()
+                },
+                onFailure = { error ->
+                    Toast.makeText(
+                        this@ScriptEditActivity,
+                        "保存失败: ${error.message}",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            )
+        }
     }
 }

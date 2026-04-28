@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 卡片选中状态: 红色边框点缀 -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
-    <solid android:color="#222225" />
+    <solid android:color="#222222" />
     <corners android:radius="16dp" />
     <stroke
         android:width="1dp"
-        android:color="#4DE8A838" />
+        android:color="#4DFF3B30" />
 </shape>

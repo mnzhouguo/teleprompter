@@ -46,14 +46,14 @@
                 android:layout_width="12dp"
                 android:layout_height="12dp"
                 android:src="@drawable/ic_document"
-                android:tint="#E8A838" />
+                android:tint="#FF3B30" />
 
             <TextView
                 android:id="@+id/count_text"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="0 个"
-                android:textColor="#E8A838"
+                android:textColor="#FF3B30"
                 android:textSize="12sp"
                 android:layout_marginStart="6dp" />
         </LinearLayout>
@@ -66,18 +66,24 @@
             android:background="#1A1A1A" />
     </LinearLayout>
 
-    <!-- 文稿列表 -->
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/script_list"
+    <!-- 文稿列表（支持下拉刷新） -->
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/swipe_refresh"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_marginTop="100dp"
-        android:layout_marginBottom="80dp"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:paddingBottom="8dp"
-        android:clipToPadding="false"
-        android:overScrollMode="never" />
+        android:layout_marginBottom="80dp">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/script_list"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="8dp"
+            android:clipToPadding="false"
+            android:overScrollMode="never" />
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
     <!-- 空状态提示 -->
     <LinearLayout
@@ -113,6 +119,15 @@
             android:layout_marginTop="6dp" />
     </LinearLayout>
 
+    <!-- 加载指示器 -->
+    <ProgressBar
+        android:id="@+id/loading_indicator"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:layout_gravity="center"
+        android:visibility="gone"
+        android:indeterminateTint="#FF3B30" />
+
     <!-- 底部操作栏 -->
     <FrameLayout
         android:id="@+id/bottom_bar"
@@ -136,7 +151,7 @@
                 android:layout_height="24dp"
                 android:layout_gravity="center"
                 android:src="@drawable/ic_add"
-                android:tint="#0A0A0B" />
+                android:tint="#FF3B30" />
         </FrameLayout>
     </FrameLayout>
 
