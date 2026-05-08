@@ -190,7 +190,7 @@ class FloatingService : Service() {
 
     private fun setupPipeline(script: String, appId: String, accessToken: String) {
         syncEngine = VoiceSyncEngine(script)
-        scrollController = ScrollController(scrollView, scriptText)
+        scrollController = ScrollController(scrollView, scriptText, script)
         audioCapture = AudioCapture(this)   // 传入 Context 以便管理蓝牙 SCO
 
         // 初始化 Spannable，之后只更新 span 不重置文本，避免触发重新布局

@@ -172,7 +172,7 @@ class VideoRecordActivity : AppCompatActivity() {
         tabKeywords.setOnClickListener { switchTab(1) }
 
         scriptText.setText(SpannableString(script), TextView.BufferType.SPANNABLE)
-        scrollController = ScrollController(scrollView, scriptText)
+        scrollController = ScrollController(scrollView, scriptText, script)
 
         // 监听 ScrollView 滚动
         scrollView.viewTreeObserver.addOnScrollChangedListener {
