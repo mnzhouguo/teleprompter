@@ -68,4 +68,18 @@ class ScrollController(
     fun stop() {
         springAnim.cancel()
     }
+
+    /**
+     * 获取当前可见区域目标位置（30%处）对应的字符索引
+     */
+    fun getCurrentPositionCharIndex(): Int {
+        val layout = textView.layout ?: return 0
+        val scrollY = scrollView.scrollY
+        val visibleH = scrollView.height.takeIf { it > 0 } ?: 500
+        val targetY = scrollY + visibleH * 0.30f - textView.paddingTop
+
+        val line = layout.getLineForVertical(targetY.toInt().coerceAtLeast(0))
+        lastLine = line
+        return layout.getLineStart(line)
+    }
 }

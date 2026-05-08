@@ -108,6 +108,10 @@ class VideoRecordActivity : AppCompatActivity() {
             mainHandler.postDelayed(this, 1000)
         }
     }
+    private val scrollStopRunnable = Runnable {
+        onManualScrollStopped()
+    }
+    private var isScrolling = false
 
     private val permLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -169,6 +173,15 @@ class VideoRecordActivity : AppCompatActivity() {
 
         scriptText.setText(SpannableString(script), TextView.BufferType.SPANNABLE)
         scrollController = ScrollController(scrollView, scriptText)
+
+        // 监听 ScrollView 滚动
+        scrollView.viewTreeObserver.addOnScrollChangedListener {
+            if (!isRecording && currentTab == 0) {
+                isScrolling = true
+                mainHandler.removeCallbacks(scrollStopRunnable)
+                mainHandler.postDelayed(scrollStopRunnable, 150)
+            }
+        }
 
         btnBack.setOnClickListener { onBackPressedDispatcher.onBackPressed() }
         btnRecord.setOnClickListener { toggleRecording() }
@@ -251,6 +264,16 @@ class VideoRecordActivity : AppCompatActivity() {
             contentFullText.visibility = View.GONE
             contentKeywords.visibility = View.VISIBLE
         }
+    }
+
+    private fun onManualScrollStopped() {
+        isScrolling = false
+        if (currentTab != 0) return
+
+        val charIndex = scrollController?.getCurrentPositionCharIndex() ?: 0
+        syncEngine?.setPosition(charIndex)
+        updateHighlight(charIndex)
+        debugText.text = "起始位置已设置: 第${charIndex + 1}字符"
     }
 
     private fun checkAndStartCamera() {
@@ -377,6 +400,11 @@ class VideoRecordActivity : AppCompatActivity() {
             searchForward = configForward,
             searchBack = configBack)
         scriptText.setText(SpannableString(script), TextView.BufferType.SPANNABLE)
+
+        // 使用当前 ScrollView 可见位置作为起始点
+        val startCharIndex = scrollController?.getCurrentPositionCharIndex() ?: 0
+        syncEngine?.setPosition(startCharIndex)
+        updateHighlight(startCharIndex)
 
         asrClient = DoubaoAsrClient(
             appId = appId,
