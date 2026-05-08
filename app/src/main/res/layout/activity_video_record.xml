@@ -76,26 +76,121 @@
             </FrameLayout>
         </LinearLayout>
 
-        <!-- 文字滚动区（折叠时隐藏） -->
-        <ScrollView
-            android:id="@+id/scroll_view"
+        <!-- Tab 栏（折叠时隐藏） -->
+        <LinearLayout
+            android:id="@+id/tab_bar"
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:orientation="horizontal"
+            android:background="#1AFFFFFF">
+
+            <!-- 全文提示 Tab -->
+            <FrameLayout
+                android:id="@+id/tab_full_text"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="?android:attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true">
+
+                <TextView
+                    android:id="@+id/tab_full_text_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:text="全文提示"
+                    android:textColor="#FFD700"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <View
+                    android:id="@+id/tab_full_text_indicator"
+                    android:layout_width="48dp"
+                    android:layout_height="3dp"
+                    android:layout_gravity="bottom|center_horizontal"
+                    android:layout_marginBottom="4dp"
+                    android:background="@drawable/tab_indicator" />
+            </FrameLayout>
+
+            <!-- 关键字提示 Tab -->
+            <FrameLayout
+                android:id="@+id/tab_keywords"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="?android:attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true">
+
+                <TextView
+                    android:id="@+id/tab_keywords_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:text="关键字提示"
+                    android:textColor="#80FFFFFF"
+                    android:textSize="14sp" />
+
+                <View
+                    android:id="@+id/tab_keywords_indicator"
+                    android:layout_width="48dp"
+                    android:layout_height="3dp"
+                    android:layout_gravity="bottom|center_horizontal"
+                    android:layout_marginBottom="4dp"
+                    android:background="@drawable/tab_indicator"
+                    android:visibility="invisible" />
+            </FrameLayout>
+        </LinearLayout>
+
+        <!-- 全文提示内容区（折叠时隐藏） -->
+        <FrameLayout
+            android:id="@+id/content_full_text"
+            android:layout_width="match_parent"
+            android:layout_height="180dp">
+
+            <ScrollView
+                android:id="@+id/scroll_view"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:overScrollMode="never"
+                android:scrollbars="none">
+
+                <TextView
+                    android:id="@+id/script_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingLeft="16dp"
+                    android:paddingRight="16dp"
+                    android:paddingTop="60dp"
+                    android:paddingBottom="120dp"
+                    android:textColor="#FFFFFF"
+                    android:textSize="22sp"
+                    android:lineSpacingMultiplier="1.4" />
+            </ScrollView>
+        </FrameLayout>
+
+        <!-- 关键字提示内容区（折叠时隐藏，默认不可见） -->
+        <FrameLayout
+            android:id="@+id/content_keywords"
             android:layout_width="match_parent"
             android:layout_height="180dp"
-            android:overScrollMode="never"
-            android:scrollbars="none">
+            android:visibility="gone">
 
-            <TextView
-                android:id="@+id/script_text"
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:paddingLeft="16dp"
-                android:paddingRight="16dp"
-                android:paddingTop="60dp"
-                android:paddingBottom="120dp"
-                android:textColor="#FFFFFF"
-                android:textSize="22sp"
-                android:lineSpacingMultiplier="1.4" />
-        </ScrollView>
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="关键字提示功能开发中..."
+                    android:textColor="#66FFFFFF"
+                    android:textSize="14sp" />
+            </LinearLayout>
+        </FrameLayout>
 
         <!-- 拖动手柄（折叠时隐藏） -->
         <LinearLayout

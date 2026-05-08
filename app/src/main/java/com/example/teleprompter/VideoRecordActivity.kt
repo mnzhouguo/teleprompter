@@ -64,9 +64,19 @@ class VideoRecordActivity : AppCompatActivity() {
     private lateinit var resizeHandle: LinearLayout
     private lateinit var zoomPanel: LinearLayout
     private lateinit var zoomButtons: List<TextView>
+    private lateinit var tabBar: LinearLayout
+    private lateinit var tabFullText: FrameLayout
+    private lateinit var tabKeywords: FrameLayout
+    private lateinit var tabFullTextLabel: TextView
+    private lateinit var tabKeywordsLabel: TextView
+    private lateinit var tabFullTextIndicator: View
+    private lateinit var tabKeywordsIndicator: View
+    private lateinit var contentFullText: FrameLayout
+    private lateinit var contentKeywords: FrameLayout
     private var configWindow = 5
     private var configForward = 60
     private var configBack = 3
+    private var currentTab = 0 // 0: 全文提示, 1: 关键字提示
 
     private var overlayExpanded = true
     private var lastResizeY = 0f
@@ -133,6 +143,15 @@ class VideoRecordActivity : AppCompatActivity() {
         overlayHeader = findViewById(R.id.overlay_header)
         resizeHandle = findViewById(R.id.resize_handle)
         zoomPanel = findViewById(R.id.zoom_panel)
+        tabBar = findViewById(R.id.tab_bar)
+        tabFullText = findViewById(R.id.tab_full_text)
+        tabKeywords = findViewById(R.id.tab_keywords)
+        tabFullTextLabel = findViewById(R.id.tab_full_text_label)
+        tabKeywordsLabel = findViewById(R.id.tab_keywords_label)
+        tabFullTextIndicator = findViewById(R.id.tab_full_text_indicator)
+        tabKeywordsIndicator = findViewById(R.id.tab_keywords_indicator)
+        contentFullText = findViewById(R.id.content_full_text)
+        contentKeywords = findViewById(R.id.content_keywords)
 
         zoomButtons = listOf(
             findViewById<TextView>(R.id.btn_zoom_0_8),
@@ -143,6 +162,10 @@ class VideoRecordActivity : AppCompatActivity() {
             findViewById<TextView>(R.id.btn_zoom_1_8),
             findViewById<TextView>(R.id.btn_zoom_2_0)
         )
+
+        // Tab 切换
+        tabFullText.setOnClickListener { switchTab(0) }
+        tabKeywords.setOnClickListener { switchTab(1) }
 
         scriptText.setText(SpannableString(script), TextView.BufferType.SPANNABLE)
         scrollController = ScrollController(scrollView, scriptText)
@@ -170,7 +193,9 @@ class VideoRecordActivity : AppCompatActivity() {
         overlayHeader.setOnClickListener {
             overlayExpanded = !overlayExpanded
             val vis = if (overlayExpanded) View.VISIBLE else View.GONE
-            scrollView.visibility = vis
+            tabBar.visibility = vis
+            contentFullText.visibility = if (overlayExpanded && currentTab == 0) View.VISIBLE else View.GONE
+            contentKeywords.visibility = if (overlayExpanded && currentTab == 1) View.VISIBLE else View.GONE
             resizeHandle.visibility = vis
             val arrow = findViewById<TextView>(R.id.btn_toggle_overlay)
             arrow.text = if (overlayExpanded) "▾" else "▴"
@@ -189,9 +214,10 @@ class VideoRecordActivity : AppCompatActivity() {
                     val density = resources.displayMetrics.density
                     val minH = (80 * density).toInt()
                     val maxH = (resources.displayMetrics.heightPixels * 0.65f).toInt()
-                    val lp = scrollView.layoutParams
+                    val lp = contentFullText.layoutParams
                     lp.height = (lp.height + delta.toInt()).coerceIn(minH, maxH)
-                    scrollView.layoutParams = lp
+                    contentFullText.layoutParams = lp
+                    contentKeywords.layoutParams = lp
                     true
                 }
                 else -> false
@@ -199,6 +225,32 @@ class VideoRecordActivity : AppCompatActivity() {
         }
 
         checkAndStartCamera()
+    }
+
+    private fun switchTab(tab: Int) {
+        if (currentTab == tab) return
+        currentTab = tab
+
+        // 更新 Tab UI
+        if (tab == 0) {
+            tabFullTextLabel.setTextColor(Color.parseColor("#FFD700"))
+            tabFullTextLabel.typeface = android.graphics.Typeface.DEFAULT_BOLD
+            tabFullTextIndicator.visibility = View.VISIBLE
+            tabKeywordsLabel.setTextColor(Color.parseColor("#80FFFFFF"))
+            tabKeywordsLabel.typeface = android.graphics.Typeface.DEFAULT
+            tabKeywordsIndicator.visibility = View.INVISIBLE
+            contentFullText.visibility = View.VISIBLE
+            contentKeywords.visibility = View.GONE
+        } else {
+            tabFullTextLabel.setTextColor(Color.parseColor("#80FFFFFF"))
+            tabFullTextLabel.typeface = android.graphics.Typeface.DEFAULT
+            tabFullTextIndicator.visibility = View.INVISIBLE
+            tabKeywordsLabel.setTextColor(Color.parseColor("#FFD700"))
+            tabKeywordsLabel.typeface = android.graphics.Typeface.DEFAULT_BOLD
+            tabKeywordsIndicator.visibility = View.VISIBLE
+            contentFullText.visibility = View.GONE
+            contentKeywords.visibility = View.VISIBLE
+        }
     }
 
     private fun checkAndStartCamera() {
