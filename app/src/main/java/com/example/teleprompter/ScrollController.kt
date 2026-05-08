@@ -10,6 +10,8 @@ class ScrollController(
     private val scrollView: ScrollView,
     private val textView: TextView
 ) {
+    private var lastLine = 0
+
     private val scrollYProperty = object : FloatPropertyCompat<ScrollView>("scrollY") {
         override fun getValue(obj: ScrollView) = obj.scrollY.toFloat()
         override fun setValue(obj: ScrollView, value: Float) {
@@ -32,19 +34,34 @@ class ScrollController(
         }
         val safeIndex = charIndex.coerceIn(0, (textView.text.length - 1).coerceAtLeast(0))
         val line = layout.getLineForOffset(safeIndex)
+        lastLine = line
 
-        // layout.getLineTop 返回的是文字区域内的 Y（不含 paddingTop）
-        // ScrollView 滚动的是整个 TextView（含 paddingTop），所以要加上 paddingTop
         val lineTopInLayout = layout.getLineTop(line).toFloat()
         val paddingTop = textView.paddingTop.toFloat()
-        val lineAbsY = paddingTop + lineTopInLayout   // 在 ScrollView 内容中的绝对 Y
+        val lineAbsY = paddingTop + lineTopInLayout
 
-        // 让当前行落在可见区上部 30% 处
         val visibleH = scrollView.height.takeIf { it > 0 } ?: 500
         val targetScrollY = (lineAbsY - visibleH * 0.30f).coerceAtLeast(0f)
 
         springAnim.animateToFinalPosition(targetScrollY)
         android.util.Log.d("ScrollCtrl", "charIdx=$charIndex line=$line absY=$lineAbsY target=$targetScrollY svH=$visibleH")
+    }
+
+    fun scrollOneLine(): Int {
+        val layout = textView.layout
+        if (layout == null || layout.lineCount == 0) return 0
+        val svH = scrollView.height.takeIf { it > 0 } ?: return 0
+
+        val nextLine = (lastLine + 1).coerceAtMost(layout.lineCount - 1)
+        if (nextLine == lastLine) return 0 // already at last line
+
+        lastLine = nextLine
+        val lineTop = layout.getLineTop(nextLine) + textView.paddingTop
+        val targetScrollY = (lineTop - svH * 0.30f).coerceAtLeast(0f)
+
+        springAnim.animateToFinalPosition(targetScrollY)
+        android.util.Log.d("ScrollCtrl", "scrollOneLine: lastLine=$lastLine target=$targetScrollY")
+        return 1
     }
 
     fun stop() {

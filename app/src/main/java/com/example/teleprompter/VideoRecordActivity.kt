@@ -14,6 +14,7 @@ import android.text.Spannable
 import android.text.SpannableString
 import android.text.style.BackgroundColorSpan
 import android.text.style.ForegroundColorSpan
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
@@ -63,6 +64,9 @@ class VideoRecordActivity : AppCompatActivity() {
     private lateinit var resizeHandle: LinearLayout
     private lateinit var zoomPanel: LinearLayout
     private lateinit var zoomButtons: List<TextView>
+    private var configWindow = 5
+    private var configForward = 60
+    private var configBack = 3
 
     private var overlayExpanded = true
     private var lastResizeY = 0f
@@ -85,6 +89,7 @@ class VideoRecordActivity : AppCompatActivity() {
     private var accessToken = ""
 
     private var recordingSeconds = 0
+    private var lastScrollLineTime = 0L
     private val mainHandler = Handler(Looper.getMainLooper())
     private val timerRunnable = object : Runnable {
         override fun run() {
@@ -140,6 +145,7 @@ class VideoRecordActivity : AppCompatActivity() {
         )
 
         scriptText.setText(SpannableString(script), TextView.BufferType.SPANNABLE)
+        scrollController = ScrollController(scrollView, scriptText)
 
         btnBack.setOnClickListener { onBackPressedDispatcher.onBackPressed() }
         btnRecord.setOnClickListener { toggleRecording() }
@@ -155,6 +161,10 @@ class VideoRecordActivity : AppCompatActivity() {
             }
         }
         updateZoomButtonStates()
+
+        // ── 匹配参数配置对话框 ──
+        val btnSettings = findViewById<FrameLayout>(R.id.btn_settings)
+        btnSettings.setOnClickListener { showConfigDialog() }
 
         // 点击 header 折叠 / 展开提词器
         overlayHeader.setOnClickListener {
@@ -310,8 +320,10 @@ class VideoRecordActivity : AppCompatActivity() {
     }
 
     private fun startTeleprompter() {
-        syncEngine = VoiceSyncEngine(script)
-        scrollController = ScrollController(scrollView, scriptText)
+        syncEngine = VoiceSyncEngine(script,
+            windowSize = configWindow,
+            searchForward = configForward,
+            searchBack = configBack)
         scriptText.setText(SpannableString(script), TextView.BufferType.SPANNABLE)
 
         asrClient = DoubaoAsrClient(
@@ -327,7 +339,8 @@ class VideoRecordActivity : AppCompatActivity() {
                     val pos = engine.onAsrIncrement(text)
                     updateHighlight(pos)
                     controller.scrollToChar(pos)
-                    debugText.text = "「$text」"
+                    val mark = if (engine.lastMatched) "✓" else "✗"
+                    debugText.text = "$mark [${engine.lastBuffer}] ${"%.2f".format(engine.lastScore)}"
                 }
             },
             onError = { msg ->
@@ -353,7 +366,6 @@ class VideoRecordActivity : AppCompatActivity() {
         runCatching { scrollController?.stop() }
         audioCapture = null
         asrClient = null
-        scrollController = null
         mainHandler.post { debugText.text = "按录制键开始" }
     }
 
@@ -388,12 +400,88 @@ class VideoRecordActivity : AppCompatActivity() {
         }
     }
 
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // 调试：记录所有按键事件
+        if (event.action == KeyEvent.ACTION_DOWN) {
+            val dev = event.device
+            android.util.Log.d("Record", "KEY: code=${event.keyCode} name=${KeyEvent.keyCodeToString(event.keyCode)} ext=${dev?.isExternal} devName=${dev?.name} src=${dev?.sources}")
+        }
+
+        if (event.action == KeyEvent.ACTION_DOWN && isBluetoothKey(event)) {
+            val now = System.currentTimeMillis()
+            if (now - lastScrollLineTime < 300) return true
+            lastScrollLineTime = now
+
+            val scrolled = scrollController?.scrollOneLine() ?: 0
+            android.util.Log.d("Record", "BT scroll: key=${event.keyCode} scrolled=$scrolled")
+            return true
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    private fun isBluetoothKey(event: KeyEvent): Boolean {
+        val device = event.device ?: return false
+        if (!device.isExternal) return false
+        return when (event.keyCode) {
+            KeyEvent.KEYCODE_VOLUME_UP,
+            KeyEvent.KEYCODE_VOLUME_DOWN,
+            KeyEvent.KEYCODE_CAMERA,
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+            KeyEvent.KEYCODE_HEADSETHOOK -> true
+            else -> false
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         stopRecording()
         stopTeleprompter()
         stopTimer()
         cameraProvider?.unbindAll()
+    }
+
+    private fun showConfigDialog() {
+        val view = layoutInflater.inflate(R.layout.dialog_config, null)
+        val seekWin = view.findViewById<android.widget.SeekBar>(R.id.seek_window)
+        val seekFwd = view.findViewById<android.widget.SeekBar>(R.id.seek_forward)
+        val seekBck = view.findViewById<android.widget.SeekBar>(R.id.seek_back)
+        val valWin = view.findViewById<TextView>(R.id.val_window)
+        val valFwd = view.findViewById<TextView>(R.id.val_forward)
+        val valBck = view.findViewById<TextView>(R.id.val_back)
+
+        // 初始值
+        seekWin.progress = configWindow - 3
+        seekFwd.progress = configForward - 10
+        seekBck.progress = configBack - 1
+        valWin.text = "$configWindow"
+        valFwd.text = "$configForward"
+        valBck.text = "$configBack"
+
+        val listener = object : android.widget.SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seek: android.widget.SeekBar, v: Int, user: Boolean) {
+                when (seek.id) {
+                    R.id.seek_window -> { configWindow = v + 3; valWin.text = "$configWindow" }
+                    R.id.seek_forward -> { configForward = v + 10; valFwd.text = "$configForward" }
+                    R.id.seek_back -> { configBack = v + 1; valBck.text = "$configBack" }
+                }
+                syncEngine?.let {
+                    it.windowSize = configWindow
+                    it.searchForward = configForward
+                    it.searchBack = configBack
+                }
+            }
+            override fun onStartTrackingTouch(p0: android.widget.SeekBar?) {}
+            override fun onStopTrackingTouch(p0: android.widget.SeekBar?) {}
+        }
+        seekWin.setOnSeekBarChangeListener(listener)
+        seekFwd.setOnSeekBarChangeListener(listener)
+        seekBck.setOnSeekBarChangeListener(listener)
+
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("匹配参数设置")
+            .setView(view)
+            .setPositiveButton("确定", null)
+            .show()
     }
 
     private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_LONG).show()

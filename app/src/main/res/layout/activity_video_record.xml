@@ -37,8 +37,8 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="按录制键开始"
-                android:textColor="#80FFFFFF"
-                android:textSize="11sp"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
                 android:ellipsize="end"
                 android:maxLines="1" />
 
@@ -58,6 +58,21 @@
                     android:textColor="#FFFFFF"
                     android:textSize="18sp"
                     android:textStyle="bold" />
+            </FrameLayout>
+
+            <!-- 设置按钮 -->
+            <FrameLayout
+                android:id="@+id/btn_settings"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:text="⚙"
+                    android:textColor="#80FFFFFF"
+                    android:textSize="16sp" />
             </FrameLayout>
         </LinearLayout>
 
