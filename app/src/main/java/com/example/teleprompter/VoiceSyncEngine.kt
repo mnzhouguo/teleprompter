@@ -174,6 +174,21 @@ class VoiceSyncEngine(
         consecutiveNoMatch = 0
     }
 
+    @Synchronized
+    fun setPosition(originalCharIndex: Int) {
+        currentPosition = originalCharIndex.coerceIn(0, scriptChars.size)
+        // 找到对应的 cleanPosition
+        cleanPosition = 0
+        for (i in indexMapping.indices) {
+            if (indexMapping[i] <= currentPosition) {
+                cleanPosition = i
+            } else {
+                break
+            }
+        }
+        android.util.Log.d("VoiceSync", "setPosition: orig=$currentPosition clean=$cleanPosition")
+    }
+
     // 返回 Pair<相似度分数, 加权匹配字符数>
     private fun similarity(a: List<String>, b: List<String>): Pair<Double, Int> {
         val len = minOf(a.size, b.size)

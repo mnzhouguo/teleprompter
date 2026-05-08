@@ -60,8 +60,9 @@ class ScrollController(
         val targetScrollY = (lineTop - svH * 0.30f).coerceAtLeast(0f)
 
         springAnim.animateToFinalPosition(targetScrollY)
-        android.util.Log.d("ScrollCtrl", "scrollOneLine: lastLine=$lastLine target=$targetScrollY")
-        return 1
+        val charIndex = layout.getLineStart(nextLine)
+        android.util.Log.d("ScrollCtrl", "scrollOneLine: lastLine=$lastLine charIndex=$charIndex target=$targetScrollY")
+        return charIndex
     }
 
     fun stop() {

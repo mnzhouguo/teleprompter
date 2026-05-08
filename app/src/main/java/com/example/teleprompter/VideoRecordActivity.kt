@@ -412,8 +412,12 @@ class VideoRecordActivity : AppCompatActivity() {
             if (now - lastScrollLineTime < 300) return true
             lastScrollLineTime = now
 
-            val scrolled = scrollController?.scrollOneLine() ?: 0
-            android.util.Log.d("Record", "BT scroll: key=${event.keyCode} scrolled=$scrolled")
+            val charIndex = scrollController?.scrollOneLine() ?: 0
+            if (charIndex > 0) {
+                syncEngine?.setPosition(charIndex)
+                updateHighlight(charIndex)
+            }
+            android.util.Log.d("Record", "BT scroll: key=${event.keyCode} charIndex=$charIndex")
             return true
         }
         return super.dispatchKeyEvent(event)
