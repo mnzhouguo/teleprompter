@@ -194,7 +194,7 @@ class FloatingService : Service() {
         audioCapture = AudioCapture(this)   // 传入 Context 以便管理蓝牙 SCO
 
         // 初始化 Spannable，之后只更新 span 不重置文本，避免触发重新布局
-        val spannable = SpannableString(script)
+        val spannable = buildTextWithLineNumbers(script, scrollController.originalLineStarts)
         scriptText.setText(spannable, TextView.BufferType.SPANNABLE)
 
         asrClient = DoubaoAsrClient(
@@ -264,6 +264,26 @@ class FloatingService : Service() {
                 Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
             )
         }
+    }
+
+    /**
+     * 构建带行号的 SpannableString
+     */
+    private fun buildTextWithLineNumbers(text: String, lineStarts: List<Int>): SpannableString {
+        val spannable = SpannableString(text)
+        for (i in lineStarts.indices) {
+            val start = lineStarts[i]
+            val end = if (i < lineStarts.size - 1) lineStarts[i + 1] else text.length
+            // 找到该行实际结束位置（下一个换行符之前）
+            val lineEnd = text.indexOf('\n', start).let { if (it == -1) end else it }
+            spannable.setSpan(
+                LineNumberSpan(i + 1),
+                start,
+                lineEnd,
+                SpannableString.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+        }
+        return spannable
     }
 
     // =============== 生命周期清理 ===============

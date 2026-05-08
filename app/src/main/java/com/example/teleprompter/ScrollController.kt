@@ -1,5 +1,7 @@
 package com.example.teleprompter
 
+import android.text.SpannableString
+import android.text.SpannableStringBuilder
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.dynamicanimation.animation.FloatPropertyCompat
@@ -12,7 +14,7 @@ class ScrollController(
     private val originalText: String
 ) {
     // 原始文稿的换行位置（每个元素是该行起始字符索引），不包含空行
-    private val originalLineStarts: List<Int> = parseOriginalLines(originalText)
+    val originalLineStarts: List<Int> = parseOriginalLines(originalText)
     // 当前滚动到的原始行索引
     private var currentOriginalLineIndex = 0
 

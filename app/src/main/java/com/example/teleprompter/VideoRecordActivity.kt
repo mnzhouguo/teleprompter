@@ -171,8 +171,9 @@ class VideoRecordActivity : AppCompatActivity() {
         tabFullText.setOnClickListener { switchTab(0) }
         tabKeywords.setOnClickListener { switchTab(1) }
 
-        scriptText.setText(SpannableString(script), TextView.BufferType.SPANNABLE)
-        scrollController = ScrollController(scrollView, scriptText, script)
+        val controller = ScrollController(scrollView, scriptText, script)
+        scrollController = controller
+        scriptText.setText(buildTextWithLineNumbers(script, controller.originalLineStarts), TextView.BufferType.SPANNABLE)
 
         // 监听 ScrollView 滚动
         scrollView.viewTreeObserver.addOnScrollChangedListener {
@@ -264,6 +265,26 @@ class VideoRecordActivity : AppCompatActivity() {
             contentFullText.visibility = View.GONE
             contentKeywords.visibility = View.VISIBLE
         }
+    }
+
+    /**
+     * 构建带行号的 SpannableString
+     */
+    private fun buildTextWithLineNumbers(text: String, lineStarts: List<Int>): SpannableString {
+        val spannable = SpannableString(text)
+        for (i in lineStarts.indices) {
+            val start = lineStarts[i]
+            val end = if (i < lineStarts.size - 1) lineStarts[i + 1] else text.length
+            // 找到该行实际结束位置（下一个换行符之前）
+            val lineEnd = text.indexOf('\n', start).let { if (it == -1) end else it }
+            spannable.setSpan(
+                LineNumberSpan(i + 1),
+                start,
+                lineEnd,
+                SpannableString.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+        }
+        return spannable
     }
 
     private fun onManualScrollStopped() {
@@ -399,7 +420,7 @@ class VideoRecordActivity : AppCompatActivity() {
             windowSize = configWindow,
             searchForward = configForward,
             searchBack = configBack)
-        scriptText.setText(SpannableString(script), TextView.BufferType.SPANNABLE)
+        scriptText.setText(buildTextWithLineNumbers(script, scrollController!!.originalLineStarts), TextView.BufferType.SPANNABLE)
 
         // 使用当前 ScrollView 可见位置作为起始点
         val startCharIndex = scrollController?.getCurrentPositionCharIndex() ?: 0
