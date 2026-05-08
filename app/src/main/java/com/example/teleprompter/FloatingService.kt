@@ -277,7 +277,7 @@ class FloatingService : Service() {
             // 找到该行实际结束位置（下一个换行符之前）
             val lineEnd = text.indexOf('\n', start).let { if (it == -1) end else it }
             spannable.setSpan(
-                LineNumberSpan(i + 1),
+                LineNumberSpan(i + 1, start),
                 start,
                 lineEnd,
                 SpannableString.SPAN_EXCLUSIVE_EXCLUSIVE
