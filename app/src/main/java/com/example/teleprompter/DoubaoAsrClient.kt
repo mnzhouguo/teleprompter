@@ -149,8 +149,9 @@ class DoubaoAsrClient(
                 put("codec", "raw")
             })
             put("request", JSONObject().apply {
-                // 增量返回:服务端只推送新识别到的部分,省带宽也利于对齐算法
-                put("result_type", "single")
+                // 全量返回(默认 full):每次 text 为当前已识别内容的完整串,与 VoiceSyncEngine 转写去重逻辑一致。
+                // single 为增量分片,易与「整句替换」逻辑冲突而产生大量重复换行。
+                put("result_type", "full")
                 // 启用中间结果(边说边推,比等整句结束再推延迟低很多)
                 put("show_utterances", false)
                 put("enable_itn", true)        // 逆文本归一化,"一九七零"→"1970"

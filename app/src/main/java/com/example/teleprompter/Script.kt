@@ -8,7 +8,9 @@ data class Script(
     val title: String,
     val content: String,
     val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    /** 与 API `playback_content` 对应，录音识别结果 */
+    val transcript: String = ""
 ) {
     /**
      * 获取字数统计

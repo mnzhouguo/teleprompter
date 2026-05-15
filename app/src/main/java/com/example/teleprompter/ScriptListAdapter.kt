@@ -15,7 +15,8 @@ class ScriptListAdapter(
     private val onEditClick: (Script) -> Unit,
     private val onDeleteClick: (Script) -> Unit,
     private val onRecordClick: (Script) -> Unit,
-    private val onViewClick: (Script) -> Unit  // 双击查看
+    private val onViewClick: (Script) -> Unit,  // 双击查看
+    private val onPlaybackRefClick: (Script) -> Unit
 ) : RecyclerView.Adapter<ScriptListAdapter.ViewHolder>() {
 
     private var selectedPosition: Int = -1
@@ -35,6 +36,7 @@ class ScriptListAdapter(
         val actionEdit: LinearLayout = view.findViewById(R.id.action_edit)
         val actionDelete: LinearLayout = view.findViewById(R.id.action_delete)
         val actionRecord: LinearLayout = view.findViewById(R.id.action_record)
+        val actionPlaybackRef: LinearLayout = view.findViewById(R.id.action_playback_ref)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -91,6 +93,7 @@ class ScriptListAdapter(
         holder.actionEdit.setOnClickListener { onEditClick(script) }
         holder.actionDelete.setOnClickListener { onDeleteClick(script) }
         holder.actionRecord.setOnClickListener { onRecordClick(script) }
+        holder.actionPlaybackRef.setOnClickListener { onPlaybackRefClick(script) }
     }
 
     override fun getItemCount(): Int = scripts.size

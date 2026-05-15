@@ -42,6 +42,15 @@
                 android:ellipsize="end"
                 android:maxLines="1" />
 
+            <TextView
+                android:id="@+id/speed_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0字/分"
+                android:textColor="#80FFFFFF"
+                android:textSize="12sp"
+                android:layout_marginEnd="8dp" />
+
             <!-- 折叠/展开箭头 -->
             <FrameLayout
                 android:id="@+id/btn_toggle_overlay_frame"

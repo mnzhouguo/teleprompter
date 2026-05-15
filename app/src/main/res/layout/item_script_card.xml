@@ -110,7 +110,7 @@
             android:layout_height="1dp"
             android:background="#14FFFFFF" />
 
-        <!-- 按钮行 -->
+        <!-- 按钮行：编辑 | 删除 | 录制 | 转写 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -215,6 +215,42 @@
                     android:textColor="#888888"
                     android:textSize="12sp"
                     android:layout_marginStart="2dp" />
+            </LinearLayout>
+
+            <!-- 分割线 -->
+            <View
+                android:layout_width="1dp"
+                android:layout_height="36dp"
+                android:layout_gravity="center_vertical"
+                android:background="#14FFFFFF" />
+
+            <!-- 转写（playback_content） -->
+            <LinearLayout
+                android:id="@+id/action_playback_ref"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:paddingTop="12dp"
+                android:paddingBottom="12dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?android:attr/selectableItemBackground">
+
+                <ImageView
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:src="@drawable/ic_document"
+                    android:tint="#888888" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="转写"
+                    android:textColor="#888888"
+                    android:textSize="12sp"
+                    android:layout_marginStart="4dp" />
             </LinearLayout>
         </LinearLayout>
     </LinearLayout>

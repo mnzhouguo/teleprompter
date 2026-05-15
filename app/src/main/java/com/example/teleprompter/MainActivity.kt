@@ -59,7 +59,8 @@ class MainActivity : AppCompatActivity() {
             onEditClick = { script -> launchEditActivity(script) },
             onDeleteClick = { script -> deleteScript(script) },
             onRecordClick = { script -> launchRecord(script) },
-            onViewClick = { script -> launchViewActivity(script) }
+            onViewClick = { script -> launchViewActivity(script) },
+            onPlaybackRefClick = { script -> launchPlaybackContentRef(script) }
         )
 
         binding.scriptList.layoutManager = LinearLayoutManager(this)
@@ -154,10 +155,33 @@ class MainActivity : AppCompatActivity() {
     private fun launchRecord(script: Script) {
         val intent = Intent(this, VideoRecordActivity::class.java).apply {
             putExtra(VideoRecordActivity.EXTRA_SCRIPT, script.content)
+            putExtra(VideoRecordActivity.EXTRA_SCRIPT_ID, script.id)
             putExtra(VideoRecordActivity.EXTRA_APP_ID, "9578212060")
             putExtra(VideoRecordActivity.EXTRA_ACCESS_TOKEN, "BVI-b4p-L8ZP_q0iek85BCWDFbJ5-3hc")
         }
         startActivity(intent)
+    }
+
+    /**
+     * 打开与「浏览文稿」相同页面，展示 playback_content（列表映射为 transcript）。
+     */
+    private fun launchPlaybackContentRef(script: Script) {
+        lifecycleScope.launch {
+            val body = withContext(Dispatchers.IO) {
+                if (script.transcript.isNotBlank()) {
+                    script.transcript
+                } else {
+                    VideoScriptApiService.fetchScript(script.id).getOrNull()?.transcript.orEmpty()
+                }
+            }
+            val content = body.ifBlank {
+                "暂无语音转写内容。可先对该稿进行录制，结束后会自动保存到此。"
+            }
+            startActivity(Intent(this@MainActivity, ScriptViewActivity::class.java).apply {
+                putExtra(ScriptViewActivity.EXTRA_TITLE, script.title)
+                putExtra(ScriptViewActivity.EXTRA_CONTENT, content)
+            })
+        }
     }
 
     private fun updateCountBadge() {

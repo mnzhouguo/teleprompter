@@ -32,7 +32,8 @@ object VideoScriptApiService {
         val content: String,
         val word_count: Int,
         val created_at: String,
-        val updated_at: String
+        val updated_at: String,
+        val transcript: String = ""
     )
 
     data class ListResponse(
@@ -116,12 +117,19 @@ object VideoScriptApiService {
     }
 
     /**
-     * 更新文稿
+     * 更新文稿（任意字段为 null 则不写入请求体，便于部分更新）
+     * @param transcript 语音转写文本，写入服务端 `playback_content`（与列表/详情接口字段一致）
      */
-    fun updateScript(id: Long, title: String?, content: String?): Result<ApiScript> {
+    fun updateScript(
+        id: Long,
+        title: String? = null,
+        content: String? = null,
+        transcript: String? = null
+    ): Result<ApiScript> {
         val jsonBody = JSONObject()
         if (title != null) jsonBody.put("title", title)
         if (content != null) jsonBody.put("content", content)
+        if (transcript != null) jsonBody.put("playback_content", transcript)
 
         val request = Request.Builder()
             .url("$BASE_URL$API_PATH/$id")
@@ -159,8 +167,16 @@ object VideoScriptApiService {
             content = json.getString("content"),
             word_count = json.getInt("word_count"),
             created_at = json.getString("created_at"),
-            updated_at = json.getString("updated_at")
+            updated_at = json.getString("updated_at"),
+            transcript = parseTranscriptField(json)
         )
+    }
+
+    /** 兼容 playback_content（线上实际字段）与 transcript */
+    private fun parseTranscriptField(json: JSONObject): String {
+        val a = json.optString("playback_content", "").trim()
+        if (a.isNotEmpty()) return a
+        return json.optString("transcript", "").trim()
     }
 
     /**
@@ -193,7 +209,8 @@ object VideoScriptApiService {
             title = apiScript.title,
             content = apiScript.content,
             createdAt = parseApiDate(apiScript.created_at),
-            updatedAt = parseApiDate(apiScript.updated_at)
+            updatedAt = parseApiDate(apiScript.updated_at),
+            transcript = apiScript.transcript
         )
     }
 

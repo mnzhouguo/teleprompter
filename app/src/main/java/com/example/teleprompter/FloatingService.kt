@@ -200,9 +200,9 @@ class FloatingService : Service() {
         asrClient = DoubaoAsrClient(
             appId = appId,
             accessToken = accessToken,
-            onText = { text, _ ->
+            onText = { text, isFinal ->
                 mainHandler.post {
-                    val pos = syncEngine.onAsrIncrement(text)
+                    val pos = syncEngine.onAsrIncrement(text, isFinal)
                     updateHighlight(pos)
                     scrollController.scrollToChar(pos)
                     debugText.text = "「$text」"

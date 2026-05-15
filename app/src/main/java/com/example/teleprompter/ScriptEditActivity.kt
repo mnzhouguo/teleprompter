@@ -113,7 +113,7 @@ class ScriptEditActivity : AppCompatActivity() {
             binding.navSave.isEnabled = true
 
             result.fold(
-                onSuccess = { apiScript ->
+                onSuccess = {
                     setResult(Activity.RESULT_OK)
                     Toast.makeText(
                         this@ScriptEditActivity,

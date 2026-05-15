@@ -32,9 +32,14 @@ class VoiceSyncEngine(
 
     private var cleanPosition: Int = 0
 
-    // ASR 增量累积
+    // ASR 增量累积（仅用于与文稿对齐的滑动窗口算法，可能与真实朗读字面值不一致）
     private val fullAccumulated = StringBuilder()
     private var lastFullClean = ""
+
+    /** 用于导出/上传：豆包流式 text 多为「当前句整段假设」反复覆盖，需去重、去误分段 */
+    private val transcriptFinalized = StringBuilder()
+    private var transcriptInterim: String = ""
+    private var lastExportPacket: String = ""
 
     // 滑动窗口 buffer（最近 windowSize 个识别字符）
     val buffer: String get() = recentBuffer.toString()
@@ -68,8 +73,22 @@ class VoiceSyncEngine(
     }
 
     @Synchronized
-    fun onAsrIncrement(newText: String): Int {
-        fullAccumulated.append(newText)
+    fun onAsrIncrement(newText: String, isFinal: Boolean = false): Int {
+        recordTranscriptForExport(newText, isFinal)
+        // full 模式:每包为当前累计完整文本,整段替换; single 模式:多为片段追加(与豆包文档一致)
+        val cleanIn = newText.filter { !it.isWhitespace() }
+        val cleanPrev = fullAccumulated.toString().filter { !it.isWhitespace() }
+        when {
+            cleanIn.startsWith(cleanPrev) || cleanPrev.isEmpty() -> {
+                fullAccumulated.setLength(0)
+                fullAccumulated.append(newText)
+            }
+            cleanPrev.startsWith(cleanIn) -> {
+                fullAccumulated.setLength(0)
+                fullAccumulated.append(newText)
+            }
+            else -> fullAccumulated.append(newText)
+        }
         val cleanFull = fullAccumulated.filter { !it.isWhitespace() }.toString()
 
         val delta: String
@@ -172,6 +191,100 @@ class VoiceSyncEngine(
         lastFullClean = ""
         recentBuffer.clear()
         consecutiveNoMatch = 0
+        transcriptFinalized.setLength(0)
+        transcriptInterim = ""
+        lastExportPacket = ""
+    }
+
+    /**
+     * 去重后的语音转写：流式结果常为「整句当前假设」递增替换，非字符增量拼接。
+     */
+    @Synchronized
+    fun accumulatedAsrTranscript(): String {
+        val fin = transcriptFinalized.toString().trim()
+        val inter = transcriptInterim.trim()
+        val raw = when {
+            fin.isEmpty() -> inter
+            inter.isEmpty() -> fin
+            else -> "$fin\n$inter"
+        }
+        return collapseTranscriptStaircaseLines(raw)
+    }
+
+    /**
+     * 维护 transcriptFinalized / transcriptInterim，避免把每次整句假设都 append 成重复串。
+     *
+     * 豆包常见行为：同一识别分片会多次下发相同或「前缀延长」的 text；definite=true 时定稿一句。
+     * 不能用「非前缀就定稿上一包」的策略，否则会把仍在生长的半句反复写入 finalized。
+     */
+    private fun recordTranscriptForExport(text: String, isFinal: Boolean) {
+        val t = text.trim()
+        if (t.isEmpty()) return
+        if (t == lastExportPacket) return
+        lastExportPacket = t
+
+        if (isFinal) {
+            val merged = when {
+                t.isNotEmpty() && transcriptInterim.isNotEmpty() &&
+                    compactForAsr(t).startsWith(compactForAsr(transcriptInterim)) -> t
+                t.isNotEmpty() -> t
+                else -> transcriptInterim
+            }.trim()
+            for (part in merged.split('\n').map { it.trim() }.filter { it.isNotEmpty() }) {
+                appendOneFinalizedParagraph(part)
+            }
+            transcriptInterim = ""
+            lastExportPacket = ""
+            return
+        }
+
+        val cur = transcriptInterim
+        val ct = compactForAsr(t)
+        val cc = compactForAsr(cur)
+
+        when {
+            cur.isEmpty() -> transcriptInterim = t
+            ct.startsWith(cc) -> transcriptInterim = t
+            cc.startsWith(ct) -> transcriptInterim = t
+            t.length == 1 -> transcriptInterim = cur.trim() + t
+            else -> {
+                // 新起一句但未必带 definite：用换行衔接，不再写入 finalized，避免半句重复定稿
+                transcriptInterim = cur.trim() + "\n" + t.trim()
+            }
+        }
+    }
+
+    private fun compactForAsr(s: String): String = s.filter { !it.isWhitespace() }
+
+    /** 定稿段落：与末行去重；新行若为末行的真超集则替换末行 */
+    private fun appendOneFinalizedParagraph(L: String) {
+        if (L.isEmpty()) return
+        if (transcriptFinalized.isEmpty()) {
+            transcriptFinalized.append(L)
+            return
+        }
+        val fin = transcriptFinalized.toString()
+        val lastPara = fin.substringAfterLast('\n').trim()
+        if (lastPara == L) return
+        if (lastPara.isNotEmpty()) {
+            when {
+                L.startsWith(lastPara) && L.length > lastPara.length -> {
+                    stripLastFinalizedParagraph()
+                    if (transcriptFinalized.isNotEmpty()) transcriptFinalized.append('\n')
+                    transcriptFinalized.append(L)
+                    return
+                }
+                lastPara.startsWith(L) && lastPara.length >= L.length -> return
+            }
+        }
+        transcriptFinalized.append('\n').append(L)
+    }
+
+    private fun stripLastFinalizedParagraph() {
+        val s = transcriptFinalized.toString()
+        val idx = s.lastIndexOf('\n')
+        transcriptFinalized.setLength(0)
+        if (idx >= 0) transcriptFinalized.append(s.substring(0, idx))
     }
 
     @Synchronized
@@ -216,4 +329,29 @@ class VoiceSyncEngine(
         } catch (_: Exception) { null }
         return (raw ?: ch.toString()).lowercase()
     }
+}
+
+/**
+ * 合并「后一行是前一行去掉空白后的真超集」的阶梯重复行。
+ * internal：供单元测试与 [VoiceSyncEngine.accumulatedAsrTranscript] 共用。
+ */
+internal fun collapseTranscriptStaircaseLines(s: String): String {
+    val rawLines = s.split('\n').map { it.trim() }.filter { it.isNotEmpty() }
+    if (rawLines.size <= 1) return rawLines.joinToString("\n")
+    val compact = { x: String -> x.filter { !it.isWhitespace() } }
+    val merged = mutableListOf<String>()
+    outer@ for (line in rawLines) {
+        val c = compact(line)
+        if (c.isEmpty()) continue
+        while (merged.isNotEmpty()) {
+            val p = compact(merged.last())
+            when {
+                c.startsWith(p) -> merged.removeAt(merged.size - 1)
+                p.startsWith(c) && p.length >= c.length -> continue@outer
+                else -> break
+            }
+        }
+        merged.add(line)
+    }
+    return merged.joinToString("\n")
 }
