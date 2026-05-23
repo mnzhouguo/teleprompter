@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit
  */
 object VideoScriptApiService {
 
-    private const val BASE_URL = "http://49.234.19.222:4003"
+    private const val BASE_URL = "http://49.234.19.222:3000"
     private const val API_PATH = "/api/video-scripts"
 
     private val client = OkHttpClient.Builder()
@@ -53,7 +53,7 @@ object VideoScriptApiService {
         val urlBuilder = HttpUrl.Builder()
             .scheme("http")
             .host("49.234.19.222")
-            .port(4003)
+            .port(3000)
             .addPathSegments("api/video-scripts")
 
         if (search != null && search.isNotEmpty()) {
