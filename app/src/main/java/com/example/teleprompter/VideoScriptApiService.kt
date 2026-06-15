@@ -9,11 +9,13 @@ import java.util.concurrent.TimeUnit
 
 /**
  * 提词文稿API服务
- * Base URL: http://49.234.19.222:4003
+ * Base URL: http://49.234.19.222:3000
  */
 object VideoScriptApiService {
 
-    private const val BASE_URL = "http://49.234.19.222:3000"
+    private const val API_HOST = "49.234.19.222"
+    private const val API_PORT = 3000
+    private const val BASE_URL = "http://$API_HOST:$API_PORT"
     private const val API_PATH = "/api/video-scripts"
 
     private val client = OkHttpClient.Builder()
@@ -52,8 +54,8 @@ object VideoScriptApiService {
     fun fetchScripts(search: String? = null): Result<ListResponse> {
         val urlBuilder = HttpUrl.Builder()
             .scheme("http")
-            .host("49.234.19.222")
-            .port(3000)
+            .host(API_HOST)
+            .port(API_PORT)
             .addPathSegments("api/video-scripts")
 
         if (search != null && search.isNotEmpty()) {
@@ -207,7 +209,7 @@ object VideoScriptApiService {
         return Script(
             id = apiScript.id,
             title = apiScript.title,
-            content = apiScript.content,
+            content = ScriptContentFilter.forDisplay(apiScript.content),
             createdAt = parseApiDate(apiScript.created_at),
             updatedAt = parseApiDate(apiScript.updated_at),
             transcript = apiScript.transcript

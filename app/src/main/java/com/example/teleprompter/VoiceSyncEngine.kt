@@ -32,7 +32,7 @@ class VoiceSyncEngine(
 
     private var cleanPosition: Int = 0
 
-    // ASR 增量累积（仅用于与文稿对齐的滑动窗口算法，可能与真实朗读字面值不一致）
+    // ASR 累积（仅对齐/滚动；已去掉与文稿 isPunctuation 一致的符号,与 enable_punc 转写原文分离）
     private val fullAccumulated = StringBuilder()
     private var lastFullClean = ""
 
@@ -72,22 +72,27 @@ class VoiceSyncEngine(
         return ch in setOf(',', '.', ';', ':', '?', '!', '"', '\'', '(', ')', '[', ']', '<', '>', '-', '_', '/', '\\')
     }
 
+    /** 与文稿 [isPunctuation] 一致：对齐/滚动仅看「字」,不看识别里的标点(转写仍保留原文标点)。 */
+    private fun stripPunctuationForAlignment(s: String): String = s.filter { !isPunctuation(it) }
+
     @Synchronized
     fun onAsrIncrement(newText: String, isFinal: Boolean = false): Int {
         recordTranscriptForExport(newText, isFinal)
+        // 对齐链路只用去标点后的 ASR；转写已在 recordTranscriptForExport 使用原始 newText
+        val alignedText = stripPunctuationForAlignment(newText)
         // full 模式:每包为当前累计完整文本,整段替换; single 模式:多为片段追加(与豆包文档一致)
-        val cleanIn = newText.filter { !it.isWhitespace() }
+        val cleanIn = alignedText.filter { !it.isWhitespace() }
         val cleanPrev = fullAccumulated.toString().filter { !it.isWhitespace() }
         when {
             cleanIn.startsWith(cleanPrev) || cleanPrev.isEmpty() -> {
                 fullAccumulated.setLength(0)
-                fullAccumulated.append(newText)
+                fullAccumulated.append(alignedText)
             }
             cleanPrev.startsWith(cleanIn) -> {
                 fullAccumulated.setLength(0)
-                fullAccumulated.append(newText)
+                fullAccumulated.append(alignedText)
             }
-            else -> fullAccumulated.append(newText)
+            else -> fullAccumulated.append(alignedText)
         }
         val cleanFull = fullAccumulated.filter { !it.isWhitespace() }.toString()
 
@@ -223,33 +228,50 @@ class VoiceSyncEngine(
         if (t == lastExportPacket) return
         lastExportPacket = t
 
+        val compactT = compactForAsr(t)
+        val compactFinalized = compactForAsr(transcriptFinalized.toString())
+
         if (isFinal) {
-            val merged = when {
-                t.isNotEmpty() && transcriptInterim.isNotEmpty() &&
-                    compactForAsr(t).startsWith(compactForAsr(transcriptInterim)) -> t
-                t.isNotEmpty() -> t
-                else -> transcriptInterim
-            }.trim()
-            for (part in merged.split('\n').map { it.trim() }.filter { it.isNotEmpty() }) {
-                appendOneFinalizedParagraph(part)
+            // 最终结果：检查是否包含了已有的 finalized 内容
+            val newContent = if (compactFinalized.isNotEmpty() && compactT.startsWith(compactFinalized)) {
+                // 新文本包含了已有的 finalized 内容，提取新增部分
+                t.substring(transcriptFinalized.length).trim()
+            } else {
+                t
+            }
+            
+            // 处理新增部分
+            if (newContent.isNotEmpty()) {
+                for (part in newContent.split('\n').map { it.trim() }.filter { it.isNotEmpty() }) {
+                    appendOneFinalizedParagraph(part)
+                }
             }
             transcriptInterim = ""
             lastExportPacket = ""
             return
         }
 
+        // 非最终结果：处理中间状态
+        // 检查新文本是否包含了已有的 finalized 内容
+        val baseContent = if (compactFinalized.isNotEmpty() && compactT.startsWith(compactFinalized)) {
+            // 新文本包含了已有的 finalized 内容，只保留新增部分作为 interim
+            t.substring(transcriptFinalized.length).trim()
+        } else {
+            t
+        }
+
         val cur = transcriptInterim
-        val ct = compactForAsr(t)
+        val ct = compactForAsr(baseContent)
         val cc = compactForAsr(cur)
 
         when {
-            cur.isEmpty() -> transcriptInterim = t
-            ct.startsWith(cc) -> transcriptInterim = t
-            cc.startsWith(ct) -> transcriptInterim = t
-            t.length == 1 -> transcriptInterim = cur.trim() + t
+            cur.isEmpty() -> transcriptInterim = baseContent
+            ct.startsWith(cc) -> transcriptInterim = baseContent
+            cc.startsWith(ct) -> transcriptInterim = baseContent // 用新的，更准确的识别
+            baseContent.length == 1 -> transcriptInterim = cur.trim() + baseContent
             else -> {
-                // 新起一句但未必带 definite：用换行衔接，不再写入 finalized，避免半句重复定稿
-                transcriptInterim = cur.trim() + "\n" + t.trim()
+                // full模式，新内容可能是重新开始，谨慎处理，只更新interim
+                transcriptInterim = baseContent
             }
         }
     }

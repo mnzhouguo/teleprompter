@@ -147,7 +147,7 @@ class VideoRecordActivity : AppCompatActivity() {
         supportActionBar?.hide()
         setContentView(R.layout.activity_video_record)
 
-        script = intent.getStringExtra(EXTRA_SCRIPT) ?: ""
+        script = ScriptContentFilter.forDisplay(intent.getStringExtra(EXTRA_SCRIPT) ?: "")
         scriptId = intent.getLongExtra(EXTRA_SCRIPT_ID, 0L)
         appId = intent.getStringExtra(EXTRA_APP_ID) ?: ""
         accessToken = intent.getStringExtra(EXTRA_ACCESS_TOKEN) ?: ""
@@ -436,6 +436,11 @@ class VideoRecordActivity : AppCompatActivity() {
     }
 
     private fun startTeleprompter() {
+        // 先清理之前的 syncEngine（如果有的话），确保完全清空旧的转写内容
+        syncEngine?.reset()
+        syncEngine = null
+        
+        // 创建全新的 syncEngine 实例
         syncEngine = VoiceSyncEngine(script,
             windowSize = configWindow,
             searchForward = configForward,

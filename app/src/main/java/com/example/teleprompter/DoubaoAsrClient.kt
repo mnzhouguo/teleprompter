@@ -155,7 +155,8 @@ class DoubaoAsrClient(
                 // 启用中间结果(边说边推,比等整句结束再推延迟低很多)
                 put("show_utterances", false)
                 put("enable_itn", true)        // 逆文本归一化,"一九七零"→"1970"
-                put("enable_punc", false)      // 提词场景不需要标点
+                // 语音转写保存/查看需要断句标点；文稿对齐仍以去标点匹配为主(VoiceSyncEngine)
+                put("enable_punc", true)
             })
         }.toString()
 

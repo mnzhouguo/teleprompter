@@ -35,6 +35,14 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // 录制Activity结果回调
+    private val recordLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        // 录制完成，无论结果如何都重新加载列表，确保数据最新
+        loadScriptsFromApi()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -159,7 +167,7 @@ class MainActivity : AppCompatActivity() {
             putExtra(VideoRecordActivity.EXTRA_APP_ID, "9578212060")
             putExtra(VideoRecordActivity.EXTRA_ACCESS_TOKEN, "BVI-b4p-L8ZP_q0iek85BCWDFbJ5-3hc")
         }
-        startActivity(intent)
+        recordLauncher.launch(intent)
     }
 
     /**
@@ -167,14 +175,11 @@ class MainActivity : AppCompatActivity() {
      */
     private fun launchPlaybackContentRef(script: Script) {
         lifecycleScope.launch {
+            // 每次都从 API 获取最新的转写内容，不使用本地缓存
             val body = withContext(Dispatchers.IO) {
-                if (script.transcript.isNotBlank()) {
-                    script.transcript
-                } else {
-                    VideoScriptApiService.fetchScript(script.id).getOrNull()?.transcript.orEmpty()
-                }
+                VideoScriptApiService.fetchScript(script.id).getOrNull()?.transcript.orEmpty()
             }
-            val content = body.ifBlank {
+            val content = ScriptContentFilter.forDisplay(body).ifBlank {
                 "暂无语音转写内容。可先对该稿进行录制，结束后会自动保存到此。"
             }
             startActivity(Intent(this@MainActivity, ScriptViewActivity::class.java).apply {
