@@ -6,46 +6,75 @@ import net.sourceforge.pinyin4j.format.HanyuPinyinToneType
 
 class VoiceSyncEngine(
     val script: String,
-    var windowSize: Int = 5,
-    var searchForward: Int = 60,
-    var searchBack: Int = 3
+    voiceSegmentMaxSize: Int = 5,
+    forwardSearchLines: Int = 2,
+    backwardSearchChars: Int = 3
 ) {
+    var windowSize: Int = voiceSegmentMaxSize
+    var searchBack: Int = backwardSearchChars
+    var forwardSearchLines: Int = forwardSearchLines
+        set(value) {
+            field = value
+            searchForward = charsForLines(value)
+        }
+    var searchForward: Int = 10
+
+    /** 与 [windowSize] 同名，供配置 UI 使用 */
+    var voiceSegmentMaxSize: Int
+        get() = windowSize
+        set(value) { windowSize = value }
+
+    /** 与 [searchBack] 同名，供配置 UI 使用 */
+    var backwardSearchChars: Int
+        get() = searchBack
+        set(value) { searchBack = value }
+
+    private fun charsForLines(lines: Int): Int {
+        val lineCount = script.count { it == '\n' } + 1
+        val avgCharsPerLine = matchSurfaceChars.size / lineCount.coerceAtLeast(1)
+        val effectiveLines = if (avgCharsPerLine <= 6) lines * 2 else lines
+        return (avgCharsPerLine * effectiveLines).coerceAtLeast(10)
+    }
 
     companion object {
-        private const val LOW_CONFIDENCE = 0.35
-        private const val FLUSH_AFTER = 3
+        private const val LOW_CONFIDENCE_THRESHOLD = 0.35
+        private const val FOLLOW_LOSS_LIMIT = 3
     }
 
     // 原始文稿（含标点）
     val scriptChars: CharArray = script.toCharArray()
 
     // 无标点版本：用于匹配计算
-    private val cleanChars: List<Char> = scriptChars.filter { !isPunctuation(it) }
-    private val cleanPinyin: List<String> = cleanChars.map { toPinyin(it) }
+    private val matchSurfaceChars: List<Char> = scriptChars.filter { !isPunctuation(it) }
+    private val matchSurfacePinyin: List<String> = matchSurfaceChars.map { toPinyin(it) }
 
-    // 映射：无标点位置 → 原始位置
-    private val indexMapping: List<Int> = buildIndexMapping()
+    init {
+        searchForward = charsForLines(forwardSearchLines)
+    }
+
+    // 映射：匹配位置 → 文稿位置
+    private val positionMapping: List<Int> = buildPositionMapping()
 
     @Volatile
-    var currentPosition: Int = 0
+    var scriptPosition: Int = 0
         private set
 
-    private var cleanPosition: Int = 0
+    private var matchPosition: Int = 0
 
-    // ASR 累积（仅对齐/滚动；已去掉与文稿 isPunctuation 一致的符号,与 enable_punc 转写原文分离）
-    private val fullAccumulated = StringBuilder()
-    private var lastFullClean = ""
+    // ASR 累积（对齐/滚动用；去掉与文稿一致的标点，与转写原文分离）
+    private val asrAccumulated = StringBuilder()
+    private var lastCleanAsr = ""
 
     /** 用于导出/上传：豆包流式 text 多为「当前句整段假设」反复覆盖，需去重、去误分段 */
     private val transcriptFinalized = StringBuilder()
     private var transcriptInterim: String = ""
     private var lastExportPacket: String = ""
 
-    // 滑动窗口 buffer（最近 windowSize 个识别字符）
-    val buffer: String get() = recentBuffer.toString()
-    private val recentBuffer = StringBuilder()
+    // 语音片段（最近 voiceSegmentMaxSize 个识别字符）
+    val voiceSegment: String get() = voiceSegmentBuffer.toString()
+    private val voiceSegmentBuffer = StringBuilder()
 
-    private var consecutiveNoMatch = 0
+    private var followLossCount = 0
 
     // 最近两次匹配结果（供 UI 读取）
     @Volatile var lastScore: Double = 0.0
@@ -55,7 +84,7 @@ class VoiceSyncEngine(
     @Volatile var prevBuffer: String = ""
     @Volatile var prevMatched: Boolean = false
 
-    private fun buildIndexMapping(): List<Int> {
+    private fun buildPositionMapping(): List<Int> {
         val mapping = mutableListOf<Int>()
         for (i in scriptChars.indices) {
             if (!isPunctuation(scriptChars[i])) {
@@ -73,73 +102,92 @@ class VoiceSyncEngine(
     }
 
     /** 与文稿 [isPunctuation] 一致：对齐/滚动仅看「字」,不看识别里的标点(转写仍保留原文标点)。 */
-    private fun stripPunctuationForAlignment(s: String): String = s.filter { !isPunctuation(it) }
+    private fun stripPunctuation(s: String): String = s.filter { !isPunctuation(it) }
 
     @Synchronized
-    fun onAsrIncrement(newText: String, isFinal: Boolean = false): Int {
-        recordTranscriptForExport(newText, isFinal)
-        // 对齐链路只用去标点后的 ASR；转写已在 recordTranscriptForExport 使用原始 newText
-        val alignedText = stripPunctuationForAlignment(newText)
+    fun processAsrDelta(newText: String, isFinal: Boolean = false): Int {
+        recordTranscript(newText, isFinal)
+        // 对齐链路只用去标点后的 ASR；转写已在 recordTranscript 使用原始 newText
+        val alignedText = stripPunctuation(newText)
         // full 模式:每包为当前累计完整文本,整段替换; single 模式:多为片段追加(与豆包文档一致)
-        val cleanIn = alignedText.filter { !it.isWhitespace() }
-        val cleanPrev = fullAccumulated.toString().filter { !it.isWhitespace() }
+        val matchInput = alignedText.filter { !it.isWhitespace() }
+        val matchPrev = asrAccumulated.toString().filter { !it.isWhitespace() }
         when {
-            cleanIn.startsWith(cleanPrev) || cleanPrev.isEmpty() -> {
-                fullAccumulated.setLength(0)
-                fullAccumulated.append(alignedText)
+            matchInput.startsWith(matchPrev) || matchPrev.isEmpty() -> {
+                asrAccumulated.setLength(0)
+                asrAccumulated.append(alignedText)
             }
-            cleanPrev.startsWith(cleanIn) -> {
-                fullAccumulated.setLength(0)
-                fullAccumulated.append(alignedText)
+            matchPrev.startsWith(matchInput) -> {
+                asrAccumulated.setLength(0)
+                asrAccumulated.append(alignedText)
             }
-            else -> fullAccumulated.append(alignedText)
+            else -> {
+                // 新分句或 ASR 整段改写：整段替换，避免把上一句拼进 asrAccumulated
+                asrAccumulated.setLength(0)
+                asrAccumulated.append(alignedText)
+            }
         }
-        val cleanFull = fullAccumulated.filter { !it.isWhitespace() }.toString()
+        val matchFull = asrAccumulated.filter { !it.isWhitespace() }.toString()
 
         val delta: String
-        if (cleanFull.startsWith(lastFullClean)) {
-            delta = cleanFull.substring(lastFullClean.length)
+        if (matchFull.startsWith(lastCleanAsr)) {
+            delta = matchFull.substring(lastCleanAsr.length)
+            lastCleanAsr = matchFull
         } else {
-            lastFullClean = cleanFull
-            recentBuffer.clear()
-            consecutiveNoMatch = 0
-            return currentPosition
+            // 整段替换：取公共前缀，尾部作为新增量继续匹配（CONTEXT.md）
+            var prefixLen = 0
+            val limit = minOf(matchFull.length, lastCleanAsr.length)
+            while (prefixLen < limit && matchFull[prefixLen] == lastCleanAsr[prefixLen]) {
+                prefixLen++
+            }
+            lastCleanAsr = matchFull
+            if (prefixLen == 0) {
+                voiceSegmentBuffer.clear()
+                followLossCount = 0
+            }
+            delta = matchFull.substring(prefixLen)
         }
-        lastFullClean = cleanFull
 
-        if (delta.isEmpty()) return currentPosition
+        if (delta.isEmpty()) {
+            if (isFinal) resetAlignmentForNextUtterance()
+            return scriptPosition
+        }
 
         for (ch in delta) {
-            recentBuffer.append(ch)
+            voiceSegmentBuffer.append(ch)
         }
-        while (recentBuffer.length > windowSize) {
-            recentBuffer.deleteCharAt(0)
+        while (voiceSegmentBuffer.length > windowSize) {
+            voiceSegmentBuffer.deleteCharAt(0)
         }
 
-        if (recentBuffer.length < 2) return currentPosition
+        if (voiceSegmentBuffer.length < 2) {
+            if (isFinal) resetAlignmentForNextUtterance()
+            return scriptPosition
+        }
 
-        val patternPinyin = recentBuffer.map { toPinyin(it) }
+        val patternPinyin = voiceSegmentBuffer.map { toPinyin(it) }
         val patternLen = patternPinyin.size
 
-        val searchStart = (cleanPosition - searchBack).coerceAtLeast(0)
-        val searchEnd = (cleanPosition + searchForward).coerceAtMost(cleanPinyin.size)
+        val searchStart = (matchPosition - searchBack).coerceAtLeast(0)
+        val primarySearchEnd = (matchPosition + searchForward).coerceAtMost(matchSurfacePinyin.size)
 
+        // ── 第一轮搜索（常规）：带距离惩罚 ──
         var bestScore = -1.0
-        var bestCleanEndIdx = cleanPosition
+        var bestMatchEndIdx = matchPosition
         var bestForwardDist = 0
 
-        for (start in searchStart until searchEnd) {
-            val maxEnd = (start + patternLen).coerceAtMost(cleanPinyin.size)
+        for (start in searchStart until primarySearchEnd) {
+            val maxEnd = (start + patternLen).coerceAtMost(matchSurfacePinyin.size)
             if (maxEnd - start < 2) break
 
-            val result = similarity(patternPinyin, cleanPinyin.subList(start, maxEnd))
+            val result = pinyinSimilarity(patternPinyin, matchSurfacePinyin.subList(start, maxEnd))
             val rawScore = result.first
             val weightedMatch = result.second
             if (weightedMatch < 2) continue  // 至少加权匹配2个字符
 
-            val forwardDist = (start - cleanPosition).coerceAtLeast(0)
+            val forwardDist = (start - matchPosition).coerceAtLeast(0)
 
-            // 距离惩罚：远处陡峭
+            // 距离惩罚：远处陡峭，鼓励近处精确匹配
             val penalty = when {
                 forwardDist <= 2 -> 0.0
                 forwardDist <= 8 -> (forwardDist - 2) / 8.0 * 0.12
@@ -149,8 +197,37 @@ class VoiceSyncEngine(
 
             if (score > bestScore) {
                 bestScore = score
-                bestCleanEndIdx = start + weightedMatch.coerceAtLeast(1)
+                bestMatchEndIdx = start + weightedMatch.coerceAtLeast(1)
                 bestForwardDist = forwardDist
+            }
+        }
+
+        // ── 第二轮搜索（fallback）：常规搜索无匹配时，不带距离惩罚搜满范围 ──
+        if (bestScore < 0.30 && matchPosition + 1 < primarySearchEnd) {
+            var fallbackScore = -1.0
+            var fallbackEndIdx = matchPosition
+
+            for (start in searchStart until primarySearchEnd) {
+                val maxEnd = (start + patternLen).coerceAtMost(matchSurfacePinyin.size)
+                if (maxEnd - start < 2) break
+
+                val result = pinyinSimilarity(patternPinyin, matchSurfacePinyin.subList(start, maxEnd))
+                val rawScore = result.first
+                val weightedMatch = result.second
+                if (weightedMatch < 2) continue
+
+                // fallback：无距离惩罚，仅看拼音匹配质量
+                if (rawScore > fallbackScore) {
+                    fallbackScore = rawScore
+                    fallbackEndIdx = start + weightedMatch.coerceAtLeast(1)
+                }
+            }
+
+            // fallback 需要更高阈值（0.50 vs 常规 0.30），确保不误跳
+            if (fallbackScore >= 0.50 && fallbackEndIdx > matchPosition) {
+                bestScore = fallbackScore
+                bestMatchEndIdx = fallbackEndIdx
+                bestForwardDist = (fallbackEndIdx - matchPosition).coerceAtLeast(0)
             }
         }
 
@@ -163,39 +240,55 @@ class VoiceSyncEngine(
         prevMatched = lastMatched
 
         lastScore = bestScore
-        lastBuffer = recentBuffer.toString()
+        lastBuffer = voiceSegmentBuffer.toString()
 
-        if (bestScore >= threshold && bestCleanEndIdx > cleanPosition) {
-            cleanPosition = bestCleanEndIdx
-            currentPosition = if (bestCleanEndIdx < indexMapping.size) {
-                indexMapping[bestCleanEndIdx]
+        if (bestScore >= threshold && bestMatchEndIdx > matchPosition) {
+            matchPosition = bestMatchEndIdx
+            scriptPosition = if (bestMatchEndIdx < positionMapping.size) {
+                positionMapping[bestMatchEndIdx]
             } else {
                 scriptChars.size
             }
-            consecutiveNoMatch = 0
+            followLossCount = 0
             lastMatched = true
         } else {
             lastMatched = false
-            if (bestScore < LOW_CONFIDENCE) {
-                consecutiveNoMatch++
-                if (consecutiveNoMatch >= FLUSH_AFTER) {
-                    recentBuffer.clear()
-                    consecutiveNoMatch = 0
+            if (bestScore < LOW_CONFIDENCE_THRESHOLD) {
+                followLossCount++
+                if (followLossCount >= FOLLOW_LOSS_LIMIT) {
+                    voiceSegmentBuffer.clear()
+                    followLossCount = 0
                 }
             } else {
-                consecutiveNoMatch = 0
+                followLossCount = 0
             }
         }
-        return currentPosition
+        if (isFinal) resetAlignmentForNextUtterance()
+        return scriptPosition
     }
 
+    /** 一句定稿后清空对齐累积，下一句从全新 ASR 假设开始增量提取 */
+    private fun resetAlignmentForNextUtterance() {
+        lastCleanAsr = ""
+        asrAccumulated.clear()
+        voiceSegmentBuffer.clear()
+        followLossCount = 0
+    }
+
+    /** @deprecated 使用 [processAsrDelta] */
+    fun onAsrIncrement(newText: String, isFinal: Boolean = false): Int =
+        processAsrDelta(newText, isFinal)
+
+    /** @deprecated 使用 [getTranscript] */
+    fun accumulatedAsrTranscript(): String = getTranscript()
+
     fun reset() {
-        currentPosition = 0
-        cleanPosition = 0
-        fullAccumulated.clear()
-        lastFullClean = ""
-        recentBuffer.clear()
-        consecutiveNoMatch = 0
+        scriptPosition = 0
+        matchPosition = 0
+        asrAccumulated.clear()
+        lastCleanAsr = ""
+        voiceSegmentBuffer.clear()
+        followLossCount = 0
         transcriptFinalized.setLength(0)
         transcriptInterim = ""
         lastExportPacket = ""
@@ -205,7 +298,7 @@ class VoiceSyncEngine(
      * 去重后的语音转写：流式结果常为「整句当前假设」递增替换，非字符增量拼接。
      */
     @Synchronized
-    fun accumulatedAsrTranscript(): String {
+    fun getTranscript(): String {
         val fin = transcriptFinalized.toString().trim()
         val inter = transcriptInterim.trim()
         val raw = when {
@@ -222,25 +315,22 @@ class VoiceSyncEngine(
      * 豆包常见行为：同一识别分片会多次下发相同或「前缀延长」的 text；definite=true 时定稿一句。
      * 不能用「非前缀就定稿上一包」的策略，否则会把仍在生长的半句反复写入 finalized。
      */
-    private fun recordTranscriptForExport(text: String, isFinal: Boolean) {
+    private fun recordTranscript(text: String, isFinal: Boolean) {
         val t = text.trim()
         if (t.isEmpty()) return
         if (t == lastExportPacket) return
         lastExportPacket = t
 
-        val compactT = compactForAsr(t)
-        val compactFinalized = compactForAsr(transcriptFinalized.toString())
+        val compactT = compactForDelta(t)
+        val compactFinalized = compactForDelta(transcriptFinalized.toString())
 
         if (isFinal) {
-            // 最终结果：检查是否包含了已有的 finalized 内容
             val newContent = if (compactFinalized.isNotEmpty() && compactT.startsWith(compactFinalized)) {
-                // 新文本包含了已有的 finalized 内容，提取新增部分
                 t.substring(transcriptFinalized.length).trim()
             } else {
                 t
             }
-            
-            // 处理新增部分
+
             if (newContent.isNotEmpty()) {
                 for (part in newContent.split('\n').map { it.trim() }.filter { it.isNotEmpty() }) {
                     appendOneFinalizedParagraph(part)
@@ -251,32 +341,28 @@ class VoiceSyncEngine(
             return
         }
 
-        // 非最终结果：处理中间状态
-        // 检查新文本是否包含了已有的 finalized 内容
         val baseContent = if (compactFinalized.isNotEmpty() && compactT.startsWith(compactFinalized)) {
-            // 新文本包含了已有的 finalized 内容，只保留新增部分作为 interim
             t.substring(transcriptFinalized.length).trim()
         } else {
             t
         }
 
         val cur = transcriptInterim
-        val ct = compactForAsr(baseContent)
-        val cc = compactForAsr(cur)
+        val ct = compactForDelta(baseContent)
+        val cc = compactForDelta(cur)
 
         when {
             cur.isEmpty() -> transcriptInterim = baseContent
             ct.startsWith(cc) -> transcriptInterim = baseContent
-            cc.startsWith(ct) -> transcriptInterim = baseContent // 用新的，更准确的识别
+            cc.startsWith(ct) -> transcriptInterim = baseContent
             baseContent.length == 1 -> transcriptInterim = cur.trim() + baseContent
             else -> {
-                // full模式，新内容可能是重新开始，谨慎处理，只更新interim
                 transcriptInterim = baseContent
             }
         }
     }
 
-    private fun compactForAsr(s: String): String = s.filter { !it.isWhitespace() }
+    private fun compactForDelta(s: String): String = s.filter { !it.isWhitespace() }
 
     /** 定稿段落：与末行去重；新行若为末行的真超集则替换末行 */
     private fun appendOneFinalizedParagraph(L: String) {
@@ -311,21 +397,25 @@ class VoiceSyncEngine(
 
     @Synchronized
     fun setPosition(originalCharIndex: Int) {
-        currentPosition = originalCharIndex.coerceIn(0, scriptChars.size)
-        // 找到对应的 cleanPosition
-        cleanPosition = 0
-        for (i in indexMapping.indices) {
-            if (indexMapping[i] <= currentPosition) {
-                cleanPosition = i
+        scriptPosition = originalCharIndex.coerceIn(0, scriptChars.size)
+        // 找到对应的 matchPosition
+        matchPosition = 0
+        for (i in positionMapping.indices) {
+            if (positionMapping[i] <= scriptPosition) {
+                matchPosition = i
             } else {
                 break
             }
         }
-        android.util.Log.d("VoiceSync", "setPosition: orig=$currentPosition clean=$cleanPosition")
+        asrAccumulated.clear()
+        lastCleanAsr = ""
+        voiceSegmentBuffer.clear()
+        followLossCount = 0
+        android.util.Log.d("VoiceSync", "setPosition: orig=$scriptPosition match=$matchPosition")
     }
 
-    // 返回 Pair<相似度分数, 加权匹配字符数>
-    private fun similarity(a: List<String>, b: List<String>): Pair<Double, Int> {
+    // 返回 Pair<拼音相似度分数, 加权匹配字符数>
+    private fun pinyinSimilarity(a: List<String>, b: List<String>): Pair<Double, Int> {
         val len = minOf(a.size, b.size)
         if (len == 0) return Pair(0.0, 0)
         var match = 0.0
@@ -336,7 +426,6 @@ class VoiceSyncEngine(
                 a[i].isNotEmpty() && b[i].isNotEmpty() && a[i][0].lowercaseChar() == b[i][0].lowercaseChar() -> { match += 0.2; weightedMatch += 0.2 }
             }
         }
-        // 分母用实际比较数 len，不是 maxOf——修复稿末剩余字数少于 buffer 时 score 被压低的 bug
         val score = match / len
         return Pair(score, (weightedMatch + 0.5).toInt())
     }
@@ -355,7 +444,7 @@ class VoiceSyncEngine(
 
 /**
  * 合并「后一行是前一行去掉空白后的真超集」的阶梯重复行。
- * internal：供单元测试与 [VoiceSyncEngine.accumulatedAsrTranscript] 共用。
+ * internal：供单元测试与 [VoiceSyncEngine.getTranscript] 共用。
  */
 internal fun collapseTranscriptStaircaseLines(s: String): String {
     val rawLines = s.split('\n').map { it.trim() }.filter { it.isNotEmpty() }

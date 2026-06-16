@@ -202,7 +202,7 @@ class FloatingService : Service() {
             accessToken = accessToken,
             onText = { text, isFinal ->
                 mainHandler.post {
-                    val pos = syncEngine.onAsrIncrement(text, isFinal)
+                    val pos = syncEngine.processAsrDelta(text, isFinal)
                     updateHighlight(pos)
                     scrollController.scrollToChar(pos)
                     debugText.text = "「$text」"

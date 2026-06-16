@@ -1,0 +1,6 @@
+@echo off
+chcp 65001 >nul
+echo 正在关闭 Focus Reporting...
+powershell -Command "[Console]::Write([char]27 + '[?1004l')"
+echo 启动 Claude Code (bypassPermissions)...
+claude --permission-mode bypassPermissions

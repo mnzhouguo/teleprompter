@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
-GRADLE="/c/Users/mnzho/.gradle/wrapper/dists/gradle-8.2-bin/bbg7u40eoinfdyxsxr3z4i7ta/gradle-8.2/bin/gradle"
-ADB="/c/Users/mnzho/AppData/Local/Android/Sdk/platform-tools/adb.exe"
+GRADLE="/c/Users/admin/AppData/Local/Temp/gradle-8.2/bin/gradle"
+ADB="/c/Users/admin/AppData/Local/Temp/android-sdk/platform-tools/adb.exe"
 APK="app/build/outputs/apk/debug/app-debug.apk"
 PACKAGE="com.example.teleprompter"
 ACTIVITY=".MainActivity"

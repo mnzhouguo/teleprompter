@@ -47,7 +47,7 @@
             android:textSize="11sp" />
     </LinearLayout>
 
-    <!-- searchForward -->
+    <!-- searchForwardLines -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -62,7 +62,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="前向搜索范围"
+                android:text="前向搜索行数"
                 android:textColor="#DD000000"
                 android:textSize="15sp" />
             <TextView
@@ -70,7 +70,7 @@
                 android:layout_width="40dp"
                 android:layout_height="wrap_content"
                 android:gravity="center"
-                android:text="60"
+                android:text="2"
                 android:textColor="#FF8C00"
                 android:textSize="18sp"
                 android:textStyle="bold" />
@@ -79,12 +79,12 @@
             android:id="@+id/seek_forward"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:max="90"
-            android:progress="50" />
+            android:max="4"
+            android:progress="1" />
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="范围小防跳转，范围大方便追读跳过内容"
+            android:text="行数越少越不容易跳行，适合逐行朗读"
             android:textColor="#888888"
             android:textSize="11sp" />
     </LinearLayout>

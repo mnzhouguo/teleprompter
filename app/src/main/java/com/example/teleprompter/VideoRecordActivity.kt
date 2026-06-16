@@ -81,7 +81,7 @@ class VideoRecordActivity : AppCompatActivity() {
     private lateinit var contentFullText: FrameLayout
     private lateinit var contentKeywords: FrameLayout
     private var configWindow = 5
-    private var configForward = 60
+    private var configForwardLines = 2
     private var configBack = 3
     private var currentTab = 0 // 0: 全文提示, 1: 关键字提示
 
@@ -121,7 +121,7 @@ class VideoRecordActivity : AppCompatActivity() {
     }
     private val deferredTranscriptUpload = Runnable {
         if (isFinishing || isDestroyed) return@Runnable
-        val t = syncEngine?.accumulatedAsrTranscript()?.trim().orEmpty()
+        val t = syncEngine?.getTranscript()?.trim().orEmpty()
         uploadTranscriptAfterRecording(t)
     }
     private val scrollStopRunnable = Runnable {
@@ -442,9 +442,9 @@ class VideoRecordActivity : AppCompatActivity() {
         
         // 创建全新的 syncEngine 实例
         syncEngine = VoiceSyncEngine(script,
-            windowSize = configWindow,
-            searchForward = configForward,
-            searchBack = configBack)
+            voiceSegmentMaxSize = configWindow,
+            forwardSearchLines = configForwardLines,
+            backwardSearchChars = configBack)
         scriptText.setText(buildTextWithLineNumbers(script, scrollController!!.originalLineStarts), TextView.BufferType.SPANNABLE)
 
         // 使用当前 ScrollView 可见位置作为起始点
@@ -458,7 +458,7 @@ class VideoRecordActivity : AppCompatActivity() {
             onText = { text, isFinal ->
                 val engine = syncEngine
                 val pos = if (engine != null && text.isNotEmpty()) {
-                    engine.onAsrIncrement(text, isFinal)
+                    engine.processAsrDelta(text, isFinal)
                 } else {
                     -1
                 }
@@ -471,7 +471,8 @@ class VideoRecordActivity : AppCompatActivity() {
                         controller.scrollToChar(pos)
                     }
                     val mark = if (eng.lastMatched) "✓" else "✗"
-                    debugText.text = "$mark [${eng.lastBuffer}] ${"%.2f".format(eng.lastScore)}"
+                    val asrPreview = text.take(16).let { if (text.length > 16) "$it…" else it }
+                    debugText.text = "$mark $asrPreview [${eng.lastBuffer}] ${"%.2f".format(eng.lastScore)}"
                 }
             },
             onError = { msg ->
@@ -512,7 +513,7 @@ class VideoRecordActivity : AppCompatActivity() {
 
     private fun updateReadingSpeed() {
         if (recordingSeconds == 0) return
-        val pos = syncEngine?.currentPosition ?: 0
+        val pos = syncEngine?.scriptPosition ?: 0
         val charsPerMin = (pos * 60 / recordingSeconds)
         speedText.text = "${charsPerMin}字/分"
     }
@@ -594,23 +595,23 @@ class VideoRecordActivity : AppCompatActivity() {
 
         // 初始值
         seekWin.progress = configWindow - 3
-        seekFwd.progress = configForward - 10
+        seekFwd.progress = configForwardLines - 1
         seekBck.progress = configBack - 1
         valWin.text = "$configWindow"
-        valFwd.text = "$configForward"
+        valFwd.text = "${configForwardLines}行"
         valBck.text = "$configBack"
 
         val listener = object : android.widget.SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seek: android.widget.SeekBar, v: Int, user: Boolean) {
                 when (seek.id) {
                     R.id.seek_window -> { configWindow = v + 3; valWin.text = "$configWindow" }
-                    R.id.seek_forward -> { configForward = v + 10; valFwd.text = "$configForward" }
+                    R.id.seek_forward -> { configForwardLines = v + 1; valFwd.text = "${configForwardLines}行" }
                     R.id.seek_back -> { configBack = v + 1; valBck.text = "$configBack" }
                 }
                 syncEngine?.let {
-                    it.windowSize = configWindow
-                    it.searchForward = configForward
-                    it.searchBack = configBack
+                    it.voiceSegmentMaxSize = configWindow
+                    it.forwardSearchLines = configForwardLines
+                    it.backwardSearchChars = configBack
                 }
             }
             override fun onStartTrackingTouch(p0: android.widget.SeekBar?) {}

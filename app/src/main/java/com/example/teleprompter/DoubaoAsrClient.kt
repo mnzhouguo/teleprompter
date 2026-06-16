@@ -72,8 +72,10 @@ class DoubaoAsrClient(
 
     private var webSocket: WebSocket? = null
     @Volatile private var sessionReady = false
+    @Volatile private var intentionalClose = false
 
     fun connect() {
+        intentionalClose = false
         // 为本次识别生成唯一 ID(调试和排障用)
         val requestId = UUID.randomUUID().toString()
 
@@ -106,6 +108,7 @@ class DoubaoAsrClient(
     }
 
     fun close() {
+        intentionalClose = true
         webSocket?.close(1000, "client_close")
         webSocket = null
         sessionReady = false
@@ -125,13 +128,19 @@ class DoubaoAsrClient(
 
         override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
             android.util.Log.e("DoubaoASR", "WebSocket 失败: ${t.message}  HTTP=${response?.code}")
-            onError("WebSocket 失败: ${t.message}")
             sessionReady = false
+            if (!intentionalClose) {
+                onError("WebSocket 失败，正在重连: ${t.message}")
+                reconnect()
+            }
         }
 
         override fun onClosed(ws: WebSocket, code: Int, reason: String) {
             android.util.Log.i("DoubaoASR", "WebSocket 关闭: $code $reason")
             sessionReady = false
+            if (!intentionalClose) {
+                reconnect()
+            }
         }
     }
 
@@ -152,8 +161,8 @@ class DoubaoAsrClient(
                 // 全量返回(默认 full):每次 text 为当前已识别内容的完整串,与 VoiceSyncEngine 转写去重逻辑一致。
                 // single 为增量分片,易与「整句替换」逻辑冲突而产生大量重复换行。
                 put("result_type", "full")
-                // 启用中间结果(边说边推,比等整句结束再推延迟低很多)
-                put("show_utterances", false)
+                // 开启分句信息以获取 definite（句末定稿），供句边界重置对齐状态
+                put("show_utterances", true)
                 put("enable_itn", true)        // 逆文本归一化,"一九七零"→"1970"
                 // 语音转写保存/查看需要断句标点；文稿对齐仍以去标点匹配为主(VoiceSyncEngine)
                 put("enable_punc", true)
@@ -195,8 +204,7 @@ class DoubaoAsrClient(
                 try {
                     val result = JSONObject(text)
                     val resultObj = result.optJSONObject("result") ?: return
-                    val asrText = resultObj.optString("text", "")
-                    val isFinal = resultObj.optBoolean("definite", false)
+                    val (asrText, isFinal) = extractTextAndFinal(resultObj)
                     if (asrText.isNotEmpty()) {
                         android.util.Log.i("DoubaoASR", "识别结果: \"$asrText\"  final=$isFinal")
                         onText(asrText, isFinal)
@@ -211,6 +219,25 @@ class DoubaoAsrClient(
                 onError("服务端错误: $errText")
             }
         }
+    }
+
+    private fun reconnect() {
+        if (intentionalClose) return
+        webSocket = null
+        android.util.Log.i("DoubaoASR", "正在重连 WebSocket…")
+        connect()
+    }
+
+    /** 优先从 utterances 末条取 text/definite（show_utterances=true）；否则回退 result.text */
+    private fun extractTextAndFinal(resultObj: JSONObject): Pair<String, Boolean> {
+        val utterances = resultObj.optJSONArray("utterances")
+        if (utterances != null && utterances.length() > 0) {
+            val last = utterances.getJSONObject(utterances.length() - 1)
+            val text = last.optString("text", resultObj.optString("text", ""))
+            val definite = last.optBoolean("definite", false)
+            return Pair(text, definite)
+        }
+        return Pair(resultObj.optString("text", ""), resultObj.optBoolean("definite", false))
     }
 
     /** 构造 4 字节 header */

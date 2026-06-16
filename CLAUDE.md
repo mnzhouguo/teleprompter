@@ -75,6 +75,20 @@ app/build/outputs/apk/debug/app-debug.apk
 
 These can be opened in browser for visual reference during UI changes.
 
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked as GitHub issues. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical triage labels use their default names. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout. See `docs/agents/domain.md`.
+
 ## Behavioral guidelines
 Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 

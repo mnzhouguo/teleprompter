@@ -83,8 +83,17 @@ class ScrollController(
         val visibleH = scrollView.height.takeIf { it > 0 } ?: 500
         val targetScrollY = (lineAbsY - visibleH * 0.30f).coerceAtLeast(0f)
 
-        springAnim.animateToFinalPosition(targetScrollY)
-        android.util.Log.d("ScrollCtrl", "charIdx=$charIndex line=$line absY=$lineAbsY target=$targetScrollY svH=$visibleH")
+        // 大跨度跳跃（> 1.5 屏）直接跳转，不用动画——用户看不到中间内容，动画反而追不上语音
+        val currentScrollY = scrollView.scrollY
+        val distance = kotlin.math.abs(targetScrollY - currentScrollY)
+        if (distance > visibleH * 1.5f) {
+            springAnim.cancel()
+            scrollView.scrollTo(0, targetScrollY.toInt())
+            android.util.Log.d("ScrollCtrl", "charIdx=$charIndex line=$line 大跳: cur=$currentScrollY target=$targetScrollY (跳过动画)")
+        } else {
+            springAnim.animateToFinalPosition(targetScrollY)
+            android.util.Log.d("ScrollCtrl", "charIdx=$charIndex line=$line absY=$lineAbsY target=$targetScrollY svH=$visibleH")
+        }
     }
 
     /**
