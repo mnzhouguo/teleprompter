@@ -41,10 +41,6 @@ import android.view.Surface
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import android.view.WindowManager
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalCamera2Interop::class)
 class VideoRecordActivity : AppCompatActivity() {
@@ -81,7 +77,7 @@ class VideoRecordActivity : AppCompatActivity() {
     private lateinit var contentFullText: FrameLayout
     private lateinit var contentKeywords: FrameLayout
     private var configWindow = 5
-    private var configForwardLines = 2
+    private var configForward = 60
     private var configBack = 3
     private var currentTab = 0 // 0: 全文提示, 1: 关键字提示
 
@@ -118,11 +114,6 @@ class VideoRecordActivity : AppCompatActivity() {
             updateReadingSpeed()
             mainHandler.postDelayed(this, 1000)
         }
-    }
-    private val deferredTranscriptUpload = Runnable {
-        if (isFinishing || isDestroyed) return@Runnable
-        val t = syncEngine?.getTranscript()?.trim().orEmpty()
-        uploadTranscriptAfterRecording(t)
     }
     private val scrollStopRunnable = Runnable {
         onManualScrollStopped()
@@ -399,10 +390,7 @@ class VideoRecordActivity : AppCompatActivity() {
                         stopTeleprompter()
                         stopTimer()
                         if (event.hasError()) toast("录制出错: ${event.error}")
-                        else {
-                            toast("视频已保存至相册「提词器」文件夹")
-                            mainHandler.postDelayed(deferredTranscriptUpload, 450)
-                        }
+                        else toast("视频已保存至相册「提词器」文件夹")
                     }
                     else -> {}
                 }
@@ -442,23 +430,24 @@ class VideoRecordActivity : AppCompatActivity() {
         
         // 创建全新的 syncEngine 实例
         syncEngine = VoiceSyncEngine(script,
-            voiceSegmentMaxSize = configWindow,
-            forwardSearchLines = configForwardLines,
-            backwardSearchChars = configBack)
+            windowSize = configWindow,
+            searchForward = configForward,
+            searchBack = configBack)
         scriptText.setText(buildTextWithLineNumbers(script, scrollController!!.originalLineStarts), TextView.BufferType.SPANNABLE)
 
         // 使用当前 ScrollView 可见位置作为起始点
         val startCharIndex = scrollController?.getCurrentPositionCharIndex() ?: 0
         syncEngine?.setPosition(startCharIndex)
         updateHighlight(startCharIndex)
+        scrollController?.scrollToChar(startCharIndex)
 
         asrClient = DoubaoAsrClient(
             appId = appId,
             accessToken = accessToken,
-            onText = { text, isFinal ->
+            onText = { text, _ ->
                 val engine = syncEngine
                 val pos = if (engine != null && text.isNotEmpty()) {
-                    engine.processAsrDelta(text, isFinal)
+                    engine.onAsrIncrement(text)
                 } else {
                     -1
                 }
@@ -471,8 +460,7 @@ class VideoRecordActivity : AppCompatActivity() {
                         controller.scrollToChar(pos)
                     }
                     val mark = if (eng.lastMatched) "✓" else "✗"
-                    val asrPreview = text.take(16).let { if (text.length > 16) "$it…" else it }
-                    debugText.text = "$mark $asrPreview [${eng.lastBuffer}] ${"%.2f".format(eng.lastScore)}"
+                    debugText.text = "$mark [${eng.lastBuffer}] ${"%.2f".format(eng.lastScore)}"
                 }
             },
             onError = { msg ->
@@ -513,7 +501,7 @@ class VideoRecordActivity : AppCompatActivity() {
 
     private fun updateReadingSpeed() {
         if (recordingSeconds == 0) return
-        val pos = syncEngine?.scriptPosition ?: 0
+        val pos = syncEngine?.currentPosition ?: 0
         val charsPerMin = (pos * 60 / recordingSeconds)
         speedText.text = "${charsPerMin}字/分"
     }
@@ -577,7 +565,6 @@ class VideoRecordActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        mainHandler.removeCallbacks(deferredTranscriptUpload)
         stopRecording()
         stopTeleprompter()
         stopTimer()
@@ -595,23 +582,23 @@ class VideoRecordActivity : AppCompatActivity() {
 
         // 初始值
         seekWin.progress = configWindow - 3
-        seekFwd.progress = configForwardLines - 1
+        seekFwd.progress = configForward - 10
         seekBck.progress = configBack - 1
         valWin.text = "$configWindow"
-        valFwd.text = "${configForwardLines}行"
+        valFwd.text = "$configForward"
         valBck.text = "$configBack"
 
         val listener = object : android.widget.SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seek: android.widget.SeekBar, v: Int, user: Boolean) {
                 when (seek.id) {
                     R.id.seek_window -> { configWindow = v + 3; valWin.text = "$configWindow" }
-                    R.id.seek_forward -> { configForwardLines = v + 1; valFwd.text = "${configForwardLines}行" }
+                    R.id.seek_forward -> { configForward = v + 10; valFwd.text = "$configForward" }
                     R.id.seek_back -> { configBack = v + 1; valBck.text = "$configBack" }
                 }
                 syncEngine?.let {
-                    it.voiceSegmentMaxSize = configWindow
-                    it.forwardSearchLines = configForwardLines
-                    it.backwardSearchChars = configBack
+                    it.windowSize = configWindow
+                    it.searchForward = configForward
+                    it.searchBack = configBack
                 }
             }
             override fun onStartTrackingTouch(p0: android.widget.SeekBar?) {}
@@ -626,22 +613,6 @@ class VideoRecordActivity : AppCompatActivity() {
             .setView(view)
             .setPositiveButton("确定", null)
             .show()
-    }
-
-    /**
-     * 将录制过程中累计的 ASR 文本写入远程 `playback_content` 字段。
-     */
-    private fun uploadTranscriptAfterRecording(transcript: String) {
-        if (scriptId <= 0L || transcript.isEmpty()) return
-        lifecycleScope.launch {
-            val result = withContext(Dispatchers.IO) {
-                VideoScriptApiService.updateScript(scriptId, transcript = transcript)
-            }
-            result.fold(
-                onSuccess = { toast("语音转写已保存到服务器") },
-                onFailure = { e -> toast("语音转写保存失败: ${e.message}") }
-            )
-        }
     }
 
     private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
