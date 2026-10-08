@@ -95,6 +95,7 @@ class VideoRecordActivity : AppCompatActivity() {
     private var asrClient: DoubaoAsrClient? = null
     private var syncEngine: VoiceSyncEngine? = null
     private var scrollController: ScrollController? = null
+    private var traceLogger: VoiceSyncTraceLogger? = null
 
     private var isRecording = false
     private var script = ""
@@ -236,11 +237,9 @@ class VideoRecordActivity : AppCompatActivity() {
                     lastResizeY = event.rawY
                     val density = resources.displayMetrics.density
                     val minH = (80 * density).toInt()
-                    val maxH = (resources.displayMetrics.heightPixels * 0.65f).toInt()
-                    val lp = contentFullText.layoutParams
-                    lp.height = (lp.height + delta.toInt()).coerceIn(minH, maxH)
-                    contentFullText.layoutParams = lp
-                    contentKeywords.layoutParams = lp
+                    val maxH = getMaxTeleprompterContentHeight()
+                    val nextHeight = (contentFullText.layoutParams.height + delta.toInt()).coerceIn(minH, maxH)
+                    setTeleprompterContentHeight(nextHeight)
                     true
                 }
                 else -> false
@@ -248,6 +247,33 @@ class VideoRecordActivity : AppCompatActivity() {
         }
 
         checkAndStartCamera()
+    }
+
+    private fun getMaxTeleprompterContentHeight(): Int {
+        val density = resources.displayMetrics.density
+        val screenHeight = resources.displayMetrics.heightPixels
+        val headerHeight = overlayHeader.height.takeIf { it > 0 } ?: (36 * density).toInt()
+        val tabHeight = if (overlayExpanded) {
+            tabBar.height.takeIf { it > 0 } ?: (40 * density).toInt()
+        } else {
+            0
+        }
+        val handleHeight = if (overlayExpanded) {
+            resizeHandle.height.takeIf { it > 0 } ?: (22 * density).toInt()
+        } else {
+            0
+        }
+        val minHeight = (80 * density).toInt()
+        return (screenHeight - headerHeight - tabHeight - handleHeight).coerceAtLeast(minHeight)
+    }
+
+    private fun setTeleprompterContentHeight(height: Int) {
+        contentFullText.layoutParams = contentFullText.layoutParams.apply {
+            this.height = height
+        }
+        contentKeywords.layoutParams = contentKeywords.layoutParams.apply {
+            this.height = height
+        }
     }
 
     private fun switchTab(tab: Int) {
@@ -412,6 +438,7 @@ class VideoRecordActivity : AppCompatActivity() {
             recordCenter.setBackgroundResource(R.drawable.record_button_square_filled)
             btnSwitchCamera.isEnabled = false
             timerText.visibility = View.VISIBLE
+            zoomPanel.visibility = View.GONE
             timerValue.text = "00:00"
         } else {
             lp.width = (70 * resources.displayMetrics.density).toInt()
@@ -420,10 +447,29 @@ class VideoRecordActivity : AppCompatActivity() {
             recordCenter.setBackgroundResource(R.drawable.record_button_circle)
             btnSwitchCamera.isEnabled = true
             timerText.visibility = View.INVISIBLE
+            zoomPanel.visibility = View.VISIBLE
         }
     }
 
     private fun startTeleprompter() {
+        // setText 会触发 TextView 重新布局；先取当前位置，避免录制开始时锚点被重置到第一行。
+        val startCharIndex = scrollController?.getCurrentPositionCharIndex() ?: 0
+        recordingStartPosition = startCharIndex
+        traceLogger?.stop(mapOf("reason" to "restart"))
+        traceLogger = VoiceSyncTraceLogger(this).also {
+            it.start(
+                mapOf(
+                    "scriptId" to scriptId,
+                    "scriptLength" to script.length,
+                    "startCharIndex" to startCharIndex,
+                    "windowSize" to configWindow,
+                    "searchForward" to configForward,
+                    "searchBack" to configBack,
+                    "currentTab" to currentTab
+                )
+            )
+        }
+
         // 先清理之前的 syncEngine（如果有的话），确保完全清空旧的转写内容
         syncEngine?.reset()
         syncEngine = null
@@ -436,21 +482,40 @@ class VideoRecordActivity : AppCompatActivity() {
         scriptText.setText(buildTextWithLineNumbers(script, scrollController!!.originalLineStarts), TextView.BufferType.SPANNABLE)
 
         // 使用当前 ScrollView 可见位置作为起始点
-        val startCharIndex = scrollController?.getCurrentPositionCharIndex() ?: 0
         syncEngine?.setPosition(startCharIndex)
-        updateHighlight(startCharIndex)
-        scrollController?.scrollToChar(startCharIndex)
+        traceLogger?.log(
+            "engine_position_set",
+            mapOf(
+                "reason" to "recording_start",
+                "charIndex" to startCharIndex,
+                "scrollY" to scrollView.scrollY
+            )
+        )
 
         asrClient = DoubaoAsrClient(
             appId = appId,
             accessToken = accessToken,
             onText = { text, _ ->
                 val engine = syncEngine
+                val beforePos = engine?.currentPosition ?: -1
+                val startedAt = System.currentTimeMillis()
                 val pos = if (engine != null && text.isNotEmpty()) {
                     engine.onAsrIncrement(text)
                 } else {
                     -1
                 }
+                val diagnostics = engine?.lastDiagnostics
+                traceLogger?.log(
+                    "asr_match",
+                    mapOf(
+                        "rawText" to text,
+                        "rawLength" to text.length,
+                        "beforePosition" to beforePos,
+                        "afterPosition" to pos,
+                        "durationMs" to (System.currentTimeMillis() - startedAt),
+                        "diagnostics" to diagnostics?.toMap()
+                    )
+                )
                 mainHandler.post {
                     val eng = syncEngine
                     val controller = scrollController
@@ -464,6 +529,7 @@ class VideoRecordActivity : AppCompatActivity() {
                 }
             },
             onError = { msg ->
+                traceLogger?.log("asr_error", mapOf("message" to msg))
                 mainHandler.post { debugText.text = "ASR 错误: $msg" }
             }
         )
@@ -472,8 +538,12 @@ class VideoRecordActivity : AppCompatActivity() {
         audioCapture = AudioCapture(this).also {
             it.start(
                 onChunk = { pcm -> asrClient?.sendAudio(pcm) },
-                onDevice = { device -> mainHandler.post { debugText.text = "$device 已就绪" } },
+                onDevice = { device ->
+                    traceLogger?.log("audio_device", mapOf("device" to device))
+                    mainHandler.post { debugText.text = "$device 已就绪" }
+                },
                 onStatus = { available ->
+                    traceLogger?.log("audio_status", mapOf("available" to available))
                     if (!available) mainHandler.post { debugText.text = "⚠️ 麦克风不可用" }
                 }
             )
@@ -486,6 +556,13 @@ class VideoRecordActivity : AppCompatActivity() {
         runCatching { scrollController?.stop() }
         audioCapture = null
         asrClient = null
+        traceLogger?.stop(
+            mapOf(
+                "finalPosition" to (syncEngine?.currentPosition ?: -1),
+                "recordingSeconds" to recordingSeconds
+            )
+        )
+        traceLogger = null
         mainHandler.post { debugText.text = "按录制键开始" }
     }
 
@@ -501,8 +578,9 @@ class VideoRecordActivity : AppCompatActivity() {
 
     private fun updateReadingSpeed() {
         if (recordingSeconds == 0) return
-        val pos = syncEngine?.currentPosition ?: 0
-        val charsPerMin = (pos * 60 / recordingSeconds)
+        val pos = syncEngine?.currentPosition ?: recordingStartPosition
+        val readChars = (pos - recordingStartPosition).coerceAtLeast(0)
+        val charsPerMin = (readChars * 60 / recordingSeconds)
         speedText.text = "${charsPerMin}字/分"
     }
 
@@ -543,6 +621,14 @@ class VideoRecordActivity : AppCompatActivity() {
             if (charIndex > 0) {
                 syncEngine?.setPosition(charIndex)
                 updateHighlight(charIndex)
+                traceLogger?.log(
+                    "manual_position_set",
+                    mapOf(
+                        "reason" to "bluetooth_key",
+                        "keyCode" to event.keyCode,
+                        "charIndex" to charIndex
+                    )
+                )
             }
             android.util.Log.d("Record", "BT scroll: key=${event.keyCode} charIndex=$charIndex")
             return true
@@ -616,6 +702,30 @@ class VideoRecordActivity : AppCompatActivity() {
     }
 
     private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+
+    private fun VoiceSyncDiagnostics.toMap(): Map<String, Any?> = mapOf(
+        "rawTextLength" to rawTextLength,
+        "cleanTextLength" to cleanTextLength,
+        "deltaLength" to deltaLength,
+        "bufferLength" to bufferLength,
+        "previousPosition" to previousPosition,
+        "currentPosition" to currentPosition,
+        "cleanPosition" to cleanPosition,
+        "localSearchStart" to localSearchStart,
+        "localSearchEnd" to localSearchEnd,
+        "localBestScore" to localBestScore,
+        "localBestEnd" to localBestEnd,
+        "localMatched" to localMatched,
+        "jumpAttempted" to jumpAttempted,
+        "jumpAccepted" to jumpAccepted,
+        "jumpScore" to jumpScore,
+        "jumpPatternLength" to jumpPatternLength,
+        "jumpDistance" to jumpDistance,
+        "jumpThreshold" to jumpThreshold,
+        "consecutiveNoMatch" to consecutiveNoMatch,
+        "matched" to matched,
+        "decision" to decision
+    )
 
     // ════════════════════════════════════════════
     //  焦距设置

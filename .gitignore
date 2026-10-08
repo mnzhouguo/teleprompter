@@ -14,3 +14,10 @@ build/
 
 # Local screen recordings / exports
 /videos/
+
+# Local toolchain downloads and agent/tool state
+/.tools/
+/.codex/
+
+# Voice sync diagnostic traces captured from device
+/voice-sync-logs/

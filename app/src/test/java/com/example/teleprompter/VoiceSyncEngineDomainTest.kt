@@ -1,129 +1,192 @@
 package com.example.teleprompter
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * 领域语言重构后的行为测试。
- *
- * 测试命名和断言描述使用 CONTEXT.md 中的领域术语：
- * 声文对齐、ASR 增量提取、语音片段、滑动匹配、文稿位置 等。
- */
 class VoiceSyncEngineDomainTest {
 
-    // 共用文稿
     private val demoScript = "前前后后做了四次的知识复合工具的迭代升级今天给大家聊一下"
 
-    private fun engine() = VoiceSyncEngine(demoScript)
-
-    // ── 示踪子弹：完整链路 ──────────────────────────────────
-
-    /**
-     * 示踪子弹：从 ASR 增量提取到文稿位置推进的完整路径。
-     *
-     * 输入一段 ASR 识别文本 → processAsrDelta 处理 → scriptPosition 推进。
-     */
     @Test
-    fun processAsrDelta_推进文稿位置() {
-        val e = engine()
-        assertEquals("初始文稿位置应为 0", 0, e.scriptPosition)
+    fun onAsrIncrement_advancesPositionForNormalFullAsrUpdates() {
+        val engine = VoiceSyncEngine(demoScript)
 
-        e.processAsrDelta("前后做了四次", isFinal = false)
-        assertTrue("匹配后文稿位置应向前推进", e.scriptPosition > 0)
+        assertEquals(0, engine.currentPosition)
+
+        engine.onAsrIncrement("前前后后做了四次")
+
+        assertTrue("position should advance", engine.currentPosition > 0)
+        assertTrue("normal update should be marked matched", engine.lastMatched)
     }
 
-    /**
-     * ASR 增量提取：同音别字（在/再）不影响匹配。
-     */
     @Test
-    fun processAsrDelta_同音容错() {
-        val e = engine()
-        e.processAsrDelta("前前后后做了四次的", isFinal = false)
-        assertTrue("同音别字应能匹配: scriptPosition=$e.scriptPosition", e.scriptPosition > 0)
+    fun onAsrIncrement_toleratesHomophones() {
+        val engine = VoiceSyncEngine("我们在这里做一次测试")
+
+        engine.onAsrIncrement("我们再这里")
+
+        assertTrue("homophone should still match", engine.currentPosition > 0)
     }
 
-    /**
-     * 跟随丢失：连续低分匹配后语音片段被清空。
-     */
     @Test
-    fun 匹配失败累积到阈值后清空语音片段() {
-        val e = VoiceSyncEngine("你好世界")
+    fun onAsrIncrement_ignoresWhitespaceInScriptWhenMatching() {
+        val engine = VoiceSyncEngine("你好\n世界这里是测试")
 
-        // 喂入完全不匹配的文本
-        repeat(5) {
-            e.processAsrDelta("xxxxxxxxx", isFinal = false)
-        }
+        engine.onAsrIncrement("你好世界这里")
 
-        // 应该已经清空语音片段
-        assertTrue("语音片段应为空或长度 < 窗口大小", e.voiceSegment.length <= e.voiceSegmentMaxSize)
+        assertTrue("matching should cross line breaks", engine.currentPosition >= 4)
     }
 
-    /**
-     * 语音转写保留标点，文稿位置不受影响。
-     */
     @Test
-    fun 转写保留标点_对齐不受影响() {
-        val e = VoiceSyncEngine("你好世界这里是测试稿子用于滑动窗口")
-        e.processAsrDelta("你好，世", isFinal = false)
+    fun onAsrIncrement_usesNewAsrSegmentWhenFullTextStopsSharingPrefix() {
+        val engine = VoiceSyncEngine(demoScript)
+        engine.onAsrIncrement("前前后后做了四次的")
+        val firstPosition = engine.currentPosition
 
-        assertTrue("语音片段不应含标点", !e.voiceSegment.contains('，'))
-        assertTrue("转写应保留标点", e.getTranscript().contains('，'))
-    }
+        engine.onAsrIncrement("知识复合工具")
 
-    /**
-     * 位置映射：匹配位置可正确转换回文稿位置。
-     */
-    @Test
-    fun setPosition_同步文稿位置和匹配位置() {
-        val e = engine()
-        val targetCharIndex = 10 // 文稿中的第10个字符
-        e.setPosition(targetCharIndex)
-
-        assertTrue("设置后文稿位置不应小于设定值", e.scriptPosition >= targetCharIndex)
-    }
-
-    /**
-     * 句边界：第一句定稿后第二句应继续推进文稿位置（修复整段替换时 early return）。
-     */
-    @Test
-    fun processAsrDelta_第二句定稿后继续推进() {
-        val e = engine()
-        e.processAsrDelta("前前后后做了四次的", isFinal = false)
-        val posAfterFirst = e.scriptPosition
-        assertTrue("第一句应有推进", posAfterFirst > 0)
-
-        e.processAsrDelta("前前后后做了四次的", isFinal = true)
-        e.processAsrDelta("知识复合工具", isFinal = false)
         assertTrue(
-            "第二句应继续推进: before=$posAfterFirst after=${e.scriptPosition}",
-            e.scriptPosition > posAfterFirst
+            "new ASR segment should continue matching instead of being discarded",
+            engine.currentPosition > firstPosition
         )
     }
 
-    /**
-     * 句边界：新句 ASR 与上一句无前缀关系时应整段替换而非 append 污染。
-     */
     @Test
-    fun processAsrDelta_新句整段替换仍能匹配() {
-        val e = engine()
-        e.processAsrDelta("前前后后做了四次的", isFinal = true)
-        e.processAsrDelta("知识复合", isFinal = false)
-        assertTrue("新句语音片段应有内容", e.voiceSegment.isNotEmpty())
+    fun onAsrIncrement_reanchorsWhenReaderSkipsFarAhead() {
+        val skippedText = "中间这些内容会被用户直接跳过我们不应该卡在这里继续等待"
+            .repeat(1)
+        val targetText = "后面重点内容现在开始讲解"
+        val script = "开头内容先正常朗读" + skippedText + targetText
+        val engine = VoiceSyncEngine(script)
+
+        engine.onAsrIncrement("开头内容先正常")
+        val firstPosition = engine.currentPosition
+        assertTrue(firstPosition > 0)
+
+        engine.onAsrIncrement("后面重点内容现在开始")
+        assertTrue("first far packet should not jump immediately", engine.currentPosition < script.indexOf(targetText))
+        engine.onAsrIncrement("后面重点内容现在开始讲解")
+
+        assertTrue(
+            "jump reading should re-anchor near the later spoken text",
+            engine.currentPosition >= script.indexOf(targetText)
+        )
     }
 
-    /**
-     * 重置后所有状态归零。
-     */
     @Test
-    fun reset_清空所有状态() {
-        val e = engine()
-        e.processAsrDelta("前后做了四次", isFinal = false)
-        assertTrue("匹配后有推进", e.scriptPosition > 0)
+    fun onAsrIncrement_reanchorsOnShortJumpPhraseWhenLocalMatchFails() {
+        val skippedText = "这里还有一段铺垫内容".repeat(1)
+        val targetText = "重点来了呀"
+        val script = "开头内容先正常朗读" + skippedText + targetText + "继续说明"
+        val engine = VoiceSyncEngine(script)
 
-        e.reset()
-        assertEquals("重置后文稿位置归零", 0, e.scriptPosition)
-        assertTrue("重置后语音片段为空", e.voiceSegment.isEmpty())
-        assertTrue("重置后转写为空", e.getTranscript().isEmpty())
+        engine.onAsrIncrement("开头内容先正常")
+        val firstPosition = engine.currentPosition
+        assertTrue(firstPosition > 0)
+
+        engine.onAsrIncrement(targetText)
+        engine.onAsrIncrement(targetText + "继续")
+
+        assertTrue(
+            "short jump phrase within 50 chars should re-anchor when it is a strong match",
+            engine.currentPosition >= script.indexOf(targetText)
+        )
+    }
+
+    @Test
+    fun onAsrIncrement_keepsNearbyMatchInsteadOfJumpingToSimilarLaterWords() {
+        val weakLocalText = "今日我们看看普通内容"
+        val skippedText = "中间这些内容会被用户直接跳过".repeat(3)
+        val targetText = "今天重点内容现在开始讲解"
+        val script = "今天我们看看开头内容" + weakLocalText + skippedText + targetText
+        val engine = VoiceSyncEngine(script)
+
+        engine.onAsrIncrement("今天我们看看")
+        val firstPosition = engine.currentPosition
+        assertTrue(firstPosition > 0)
+
+        engine.onAsrIncrement("今天重点内容现在开始")
+
+        assertTrue(
+            "similar later words should not steal the position while nearby matching is still possible",
+            engine.currentPosition < script.indexOf(targetText)
+        )
+    }
+
+    @Test
+    fun onAsrIncrement_rejectsWeakVeryFarJumpMatch() {
+        val filler = "fillercontent".repeat(30)
+        val farSimilarText = "abcdefgxy later text"
+        val script = "start reading normally " + filler + farSimilarText
+        val engine = VoiceSyncEngine(script)
+
+        engine.onAsrIncrement("start reading")
+        assertTrue(engine.currentPosition > 0)
+
+        engine.onAsrIncrement("abcdefgzz")
+        engine.onAsrIncrement("abcdefgzzh")
+
+        assertTrue(
+            "weak far matches should not re-anchor hundreds of chars away",
+            engine.currentPosition < script.indexOf(farSimilarText)
+        )
+        assertTrue("far jump search should have been rejected", engine.lastDiagnostics.jumpAttempted)
+        assertFalse(engine.lastDiagnostics.jumpAccepted)
+    }
+
+    @Test
+    fun onAsrIncrement_rejectsExactJumpBeyondFiftyChars() {
+        val filler = "fillercontent".repeat(6)
+        val farText = "exact target phrase"
+        val script = "start reading normally " + filler + farText
+        val engine = VoiceSyncEngine(script)
+
+        engine.onAsrIncrement("start reading")
+        assertTrue(engine.currentPosition > 0)
+
+        engine.onAsrIncrement(farText)
+        engine.onAsrIncrement("$farText now")
+
+        assertTrue(
+            "automatic voice sync should never re-anchor beyond 50 chars",
+            engine.currentPosition < script.indexOf(farText)
+        )
+        assertTrue(engine.lastDiagnostics.jumpAttempted)
+        assertFalse(engine.lastDiagnostics.jumpAccepted)
+    }
+
+    @Test
+    fun setPosition_clearsOldAsrStateBeforeContinuingFromManualPosition() {
+        val engine = VoiceSyncEngine(demoScript)
+        engine.onAsrIncrement("前前后后做了四次的")
+
+        val manualPosition = demoScript.indexOf("迭代")
+        engine.setPosition(manualPosition)
+
+        assertEquals("manual position should be applied", manualPosition, engine.currentPosition)
+        assertTrue("old ASR buffer should be cleared", engine.buffer.isEmpty())
+
+        engine.onAsrIncrement("迭代升级今天")
+
+        assertTrue(
+            "ASR after manual positioning should match from the new position",
+            engine.currentPosition > manualPosition
+        )
+    }
+
+    @Test
+    fun reset_clearsMatchingState() {
+        val engine = VoiceSyncEngine(demoScript)
+        engine.onAsrIncrement("前前后后做了四次")
+        assertTrue(engine.currentPosition > 0)
+        assertFalse(engine.buffer.isEmpty())
+
+        engine.reset()
+
+        assertEquals(0, engine.currentPosition)
+        assertTrue(engine.buffer.isEmpty())
+        assertFalse(engine.lastMatched)
     }
 }

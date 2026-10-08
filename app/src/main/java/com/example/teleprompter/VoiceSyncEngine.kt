@@ -14,14 +14,29 @@ class VoiceSyncEngine(
     companion object {
         private const val LOW_CONFIDENCE = 0.35
         private const val FLUSH_AFTER = 3
-        private const val MAX_MATCH_ROUNDS = 8
+        private const val JUMP_AFTER_LOCAL_FAILURES = 2
+        private const val JUMP_SHORT_MIN_CHARS = 5
+        private const val JUMP_LONG_MIN_CHARS = 8
+        private const val JUMP_MAX_CHARS = 12
+        private const val JUMP_SHORT_THRESHOLD = 0.95
+        private const val JUMP_LONG_THRESHOLD = 0.72
+        private const val MAX_AUTO_ADVANCE_CHARS = 50
     }
+
+    private data class JumpRecovery(
+        val score: Double,
+        val cleanEnd: Int,
+        val patternLength: Int,
+        val distance: Int,
+        val threshold: Double,
+        val accepted: Boolean
+    )
 
     // 原始文稿（含标点）
     val scriptChars: CharArray = script.toCharArray()
 
     // 无标点版本：用于匹配计算
-    private val cleanChars: List<Char> = scriptChars.filter { !isPunctuation(it) }
+    private val cleanChars: List<Char> = scriptChars.filter { !isPunctuation(it) && !it.isWhitespace() }
     private val cleanPinyin: List<String> = cleanChars.map { toPinyin(it) }
 
     // 映射：无标点位置 → 原始位置
@@ -49,11 +64,13 @@ class VoiceSyncEngine(
     @Volatile var prevScore: Double = 0.0
     @Volatile var prevBuffer: String = ""
     @Volatile var prevMatched: Boolean = false
+    @Volatile var lastDiagnostics: VoiceSyncDiagnostics = VoiceSyncDiagnostics()
+        private set
 
     private fun buildIndexMapping(): List<Int> {
         val mapping = mutableListOf<Int>()
         for (i in scriptChars.indices) {
-            if (!isPunctuation(scriptChars[i])) {
+            if (!isPunctuation(scriptChars[i]) && !scriptChars[i].isWhitespace()) {
                 mapping.add(i)
             }
         }
@@ -72,47 +89,74 @@ class VoiceSyncEngine(
 
     @Synchronized
     fun onAsrIncrement(newText: String): Int {
+        val previousPosition = currentPosition
+        val previousScore = lastScore
+        val previousBuffer = lastBuffer
+        val previousMatched = lastMatched
+
         // 对齐链路只用去标点、去空白的 ASR
         val cleanFull = stripPunctuationForAlignment(newText)
             .filter { !it.isWhitespace() }
 
         // 提取增量
-        val delta: String
-        if (cleanFull.startsWith(lastFullClean)) {
-            delta = cleanFull.substring(lastFullClean.length)
+        val delta = if (cleanFull.startsWith(lastFullClean)) {
+            cleanFull.substring(lastFullClean.length)
         } else {
-            // ASR 文本发生大幅变化（修正或重新识别），重置匹配状态
-            lastFullClean = cleanFull
+            // ASR 文本发生大幅变化或进入新句时，丢弃旧 buffer，但继续尝试匹配当前段。
             recentBuffer.clear()
             consecutiveNoMatch = 0
-            return currentPosition
+            cleanFull
         }
         lastFullClean = cleanFull
 
-        if (delta.isEmpty()) return currentPosition
+        if (delta.isEmpty()) {
+            lastDiagnostics = VoiceSyncDiagnostics(
+                rawTextLength = newText.length,
+                cleanTextLength = cleanFull.length,
+                deltaLength = 0,
+                bufferLength = recentBuffer.length,
+                previousPosition = previousPosition,
+                currentPosition = currentPosition,
+                cleanPosition = cleanPosition,
+                consecutiveNoMatch = consecutiveNoMatch,
+                matched = lastMatched,
+                decision = "empty_delta"
+            )
+            return currentPosition
+        }
 
         // 将增量加入滑动窗口
         recentBuffer.append(delta)
+        var localSearchStart = cleanPosition
+        var localSearchEnd = cleanPosition
+        var localBestScore = -1.0
+        var localBestEnd = cleanPosition
+        var localMatched = false
+        var jumpAttempted = false
+        var jumpAccepted = false
+        var jumpScore = -1.0
+        var jumpPatternLength = 0
+        var jumpDistance = 0
+        var jumpThreshold = 0.0
+        var decision = "buffering"
 
-        // 多轮匹配：当 ASR 突发大量文本时，一轮可能只能推进 windowSize 个位置，
-        // 循环多次让匹配追上新到的文本，避免累积滞后
-        var round = 0
-        while (round < MAX_MATCH_ROUNDS && recentBuffer.length >= windowSize) {
-            round++
-
+        if (recentBuffer.length >= windowSize) {
             // 使用缓冲区尾部 windowSize 个字符作为匹配模式
             val patStr = recentBuffer.takeLast(windowSize).toString()
             val patternPinyin = patStr.map { toPinyin(it) }
             val patternLen = patternPinyin.size
 
             val searchStart = (cleanPosition - searchBack).coerceAtLeast(0)
-            val searchEnd = (cleanPosition + searchForward).coerceAtMost(cleanPinyin.size)
+            val maxAutoCleanEnd = (cleanPosition + MAX_AUTO_ADVANCE_CHARS).coerceAtMost(cleanPinyin.size)
+            val searchEnd = (cleanPosition + minOf(searchForward, MAX_AUTO_ADVANCE_CHARS)).coerceAtMost(cleanPinyin.size)
+            localSearchStart = searchStart
+            localSearchEnd = searchEnd
 
             var bestScore = -1.0
             var bestCleanEndIdx = cleanPosition
 
             for (start in searchStart until searchEnd) {
-                val maxEnd = (start + patternLen).coerceAtMost(cleanPinyin.size)
+                val maxEnd = minOf(start + patternLen, cleanPinyin.size, maxAutoCleanEnd)
                 if (maxEnd - start < 2) break
 
                 val result = similarity(patternPinyin, cleanPinyin.subList(start, maxEnd))
@@ -132,11 +176,29 @@ class VoiceSyncEngine(
 
                 if (score > bestScore) {
                     bestScore = score
-                    bestCleanEndIdx = start + weightedMatch.coerceAtLeast(1)
+                    bestCleanEndIdx = (start + weightedMatch.coerceAtLeast(1)).coerceAtMost(maxAutoCleanEnd)
                 }
             }
 
             val threshold = 0.30
+            localBestScore = bestScore
+            localBestEnd = bestCleanEndIdx
+            localMatched = bestScore >= threshold && bestCleanEndIdx > cleanPosition
+            val shouldTryJump = !localMatched && consecutiveNoMatch + 1 >= JUMP_AFTER_LOCAL_FAILURES
+            if (shouldTryJump) {
+                jumpAttempted = true
+                findJumpRecovery()?.let { recovery ->
+                    jumpAccepted = recovery.accepted
+                    jumpScore = recovery.score
+                    jumpPatternLength = recovery.patternLength
+                    jumpDistance = recovery.distance
+                    jumpThreshold = recovery.threshold
+                    if (recovery.accepted) {
+                        bestScore = recovery.score
+                        bestCleanEndIdx = recovery.cleanEnd
+                    }
+                }
+            }
 
             if (bestScore >= threshold && bestCleanEndIdx > cleanPosition) {
                 cleanPosition = bestCleanEndIdx
@@ -148,6 +210,7 @@ class VoiceSyncEngine(
                 consecutiveNoMatch = 0
                 lastMatched = true
                 lastScore = bestScore
+                decision = if (jumpAccepted) "jump_match" else "local_match"
 
                 // 本轮已消费 pattern 对应的文本，清理 buffer 中已被越过的旧字符
                 // 保留最后 windowSize 个作为下轮上下文
@@ -156,9 +219,10 @@ class VoiceSyncEngine(
                     recentBuffer.delete(0, keepFrom)
                 }
             } else {
-                // 本轮未匹配，不再继续
+                // 本轮未匹配
                 lastMatched = false
                 lastScore = bestScore
+                decision = if (jumpAttempted) "no_match_after_jump_search" else "no_match"
                 if (bestScore < LOW_CONFIDENCE) {
                     consecutiveNoMatch++
                     if (consecutiveNoMatch >= FLUSH_AFTER) {
@@ -168,7 +232,6 @@ class VoiceSyncEngine(
                 } else {
                     consecutiveNoMatch = 0
                 }
-                break
             }
         }
 
@@ -179,20 +242,104 @@ class VoiceSyncEngine(
         }
 
         // 上一条 → prev，新结果 → last（在循环外更新 UI 可见状态）
-        prevScore = lastScore
-        prevBuffer = lastBuffer
-        prevMatched = lastMatched
+        prevScore = previousScore
+        prevBuffer = previousBuffer
+        prevMatched = previousMatched
         lastBuffer = recentBuffer.toString()
+        lastDiagnostics = VoiceSyncDiagnostics(
+            rawTextLength = newText.length,
+            cleanTextLength = cleanFull.length,
+            deltaLength = delta.length,
+            bufferLength = recentBuffer.length,
+            previousPosition = previousPosition,
+            currentPosition = currentPosition,
+            cleanPosition = cleanPosition,
+            localSearchStart = localSearchStart,
+            localSearchEnd = localSearchEnd,
+            localBestScore = localBestScore,
+            localBestEnd = localBestEnd,
+            localMatched = localMatched,
+            jumpAttempted = jumpAttempted,
+            jumpAccepted = jumpAccepted,
+            jumpScore = jumpScore,
+            jumpPatternLength = jumpPatternLength,
+            jumpDistance = jumpDistance,
+            jumpThreshold = jumpThreshold,
+            consecutiveNoMatch = consecutiveNoMatch,
+            matched = lastMatched,
+            decision = decision
+        )
 
         return currentPosition
+    }
+
+    private fun findJumpRecovery(): JumpRecovery? {
+        if (recentBuffer.length < JUMP_SHORT_MIN_CHARS) return null
+
+        val patStr = recentBuffer.takeLast(minOf(JUMP_MAX_CHARS, recentBuffer.length)).toString()
+        val patternPinyin = patStr.map { toPinyin(it) }
+        val patternLen = patternPinyin.size
+        val isShortPattern = patternLen < JUMP_LONG_MIN_CHARS
+        val jumpThreshold = if (isShortPattern) JUMP_SHORT_THRESHOLD else JUMP_LONG_THRESHOLD
+        val minWeightedMatch = if (isShortPattern) {
+            patternLen
+        } else {
+            maxOf(JUMP_LONG_MIN_CHARS - 1, (patternLen * 0.70).toInt())
+        }
+
+        var bestScore = -1.0
+        var bestCleanEndIdx = cleanPosition
+        var bestDistance = 0
+        var bestThreshold = jumpThreshold
+        val searchStart = (cleanPosition + 1).coerceAtMost(cleanPinyin.size)
+        val searchEnd = (cleanPosition + MAX_AUTO_ADVANCE_CHARS).coerceAtMost(cleanPinyin.size)
+
+        for (start in searchStart until searchEnd) {
+            val maxEnd = minOf(start + patternLen, cleanPinyin.size, searchEnd)
+            if (maxEnd - start < JUMP_SHORT_MIN_CHARS) break
+
+            val result = similarity(patternPinyin, cleanPinyin.subList(start, maxEnd))
+            val rawScore = result.first
+            val weightedMatch = result.second
+            val distance = start - cleanPosition
+            if (weightedMatch < minWeightedMatch) continue
+
+            if (rawScore > bestScore) {
+                bestScore = rawScore
+                bestCleanEndIdx = (start + patternLen).coerceAtMost(searchEnd)
+                bestDistance = distance
+                bestThreshold = jumpThreshold
+            }
+        }
+
+        if (bestCleanEndIdx <= cleanPosition) return null
+        return JumpRecovery(
+            score = bestScore,
+            cleanEnd = bestCleanEndIdx,
+            patternLength = patternLen,
+            distance = bestDistance,
+            threshold = bestThreshold,
+            accepted = bestScore >= bestThreshold
+        )
     }
 
     fun reset() {
         currentPosition = 0
         cleanPosition = 0
+        clearAsrState()
+    }
+
+    private fun clearAsrState() {
         lastFullClean = ""
         recentBuffer.clear()
         consecutiveNoMatch = 0
+        lastScore = 0.0
+        lastBuffer = ""
+        lastMatched = false
+        prevScore = 0.0
+        prevBuffer = ""
+        prevMatched = false
+        lastDiagnostics = VoiceSyncDiagnostics()
     }
 
     @Synchronized
@@ -207,6 +354,7 @@ class VoiceSyncEngine(
                 break
             }
         }
+        clearAsrState()
         android.util.Log.d("VoiceSync", "setPosition: orig=$currentPosition clean=$cleanPosition")
     }
 

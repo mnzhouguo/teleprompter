@@ -19,7 +19,7 @@
         android:layout_height="wrap_content"
         android:layout_gravity="top"
         android:orientation="vertical"
-        android:background="#B3000000">
+        android:background="#66000000">
 
         <!-- 顶部标题栏：点击折叠/展开 -->
         <LinearLayout
@@ -91,7 +91,7 @@
             android:layout_width="match_parent"
             android:layout_height="40dp"
             android:orientation="horizontal"
-            android:background="#1AFFFFFF">
+            android:background="#12FFFFFF">
 
             <!-- 全文提示 Tab -->
             <FrameLayout
@@ -156,7 +156,7 @@
         <FrameLayout
             android:id="@+id/content_full_text"
             android:layout_width="match_parent"
-            android:layout_height="180dp">
+            android:layout_height="360dp">
 
             <ScrollView
                 android:id="@+id/scroll_view"
@@ -169,13 +169,13 @@
                     android:id="@+id/script_text"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:paddingLeft="16dp"
-                    android:paddingRight="16dp"
+                    android:paddingLeft="8dp"
+                    android:paddingRight="8dp"
                     android:paddingTop="60dp"
                     android:paddingBottom="120dp"
                     android:textColor="#FFFFFF"
-                    android:textSize="22sp"
-                    android:lineSpacingMultiplier="1.4" />
+                    android:textSize="26sp"
+                    android:lineSpacingMultiplier="1.55" />
             </ScrollView>
         </FrameLayout>
 
@@ -183,7 +183,7 @@
         <FrameLayout
             android:id="@+id/content_keywords"
             android:layout_width="match_parent"
-            android:layout_height="180dp"
+            android:layout_height="360dp"
             android:visibility="gone">
 
             <LinearLayout
@@ -207,7 +207,7 @@
             android:layout_width="match_parent"
             android:layout_height="22dp"
             android:gravity="center"
-            android:background="#1AFFFFFF">
+            android:background="#12FFFFFF">
 
             <View
                 android:layout_width="40dp"

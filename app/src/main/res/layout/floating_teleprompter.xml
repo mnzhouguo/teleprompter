@@ -7,8 +7,9 @@
     android:id="@+id/floating_root"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="#99000000"
-    android:padding="12dp">
+    android:background="#66000000"
+    android:paddingTop="12dp"
+    android:paddingBottom="12dp">
 
     <!-- 稿件滚动区域:高度固定 280dp,让用户能看到 3~5 行文本 -->
     <ScrollView
@@ -23,8 +24,10 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:textColor="#FFFFFF"
-            android:textSize="24sp"
-            android:lineSpacingMultiplier="1.4"
+            android:textSize="28sp"
+            android:lineSpacingMultiplier="1.55"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
             android:paddingTop="120dp"
             android:paddingBottom="120dp"
             android:text="" />

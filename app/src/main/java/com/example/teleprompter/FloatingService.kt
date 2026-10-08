@@ -131,8 +131,10 @@ class FloatingService : Service() {
         debugText = floatingView!!.findViewById(R.id.debug_text)
         scriptText.text = script
 
+        val screenWidth = resources.displayMetrics.widthPixels
+        floatingView!!.minimumWidth = screenWidth
         layoutParams = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
+            screenWidth,
             WindowManager.LayoutParams.WRAP_CONTENT,
             // TYPE_APPLICATION_OVERLAY: Android 8+ 唯一合法的用户级悬浮窗类型
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
@@ -146,7 +148,8 @@ class FloatingService : Service() {
             // TRANSLUCENT: 支持透明背景(我们的半透明黑底需要这个)
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            gravity = Gravity.TOP or Gravity.START
+            x = 0
             y = 200
             alpha = 0.9f
         }
