@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 口语稿卡片：左滑露出「编辑」；点卡片进入录制 -->
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="12dp"
+    android:clipChildren="true">
+
+    <!-- 底层操作：编辑 -->
+    <LinearLayout
+        android:id="@+id/speech_actions"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_gravity="end"
+        android:orientation="horizontal"
+        android:gravity="center">
+
+        <TextView
+            android:id="@+id/speech_edit"
+            android:layout_width="88dp"
+            android:layout_height="match_parent"
+            android:minHeight="120dp"
+            android:gravity="center"
+            android:text="编辑"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:background="#FF3B30"
+            android:clickable="true"
+            android:focusable="true" />
+    </LinearLayout>
+
+    <!-- 前景卡片 -->
+    <LinearLayout
+        android:id="@+id/speech_front"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@drawable/bg_script_card"
+        android:paddingStart="18dp"
+        android:paddingEnd="18dp"
+        android:paddingTop="18dp"
+        android:paddingBottom="18dp"
+        android:minHeight="132dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:elevation="2dp">
+
+        <TextView
+            android:id="@+id/speech_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="口语稿标题"
+            android:textColor="#F5F5F7"
+            android:textSize="16sp"
+            android:fontFamily="serif"
+            android:textStyle="bold"
+            android:maxLines="2"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/speech_preview"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="预览内容..."
+            android:textColor="#A1A1A6"
+            android:textSize="13sp"
+            android:lineSpacingMultiplier="1.55"
+            android:layout_marginTop="10dp"
+            android:maxLines="5"
+            android:minLines="3"
+            android:ellipsize="end" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="14dp">
+
+            <TextView
+                android:id="@+id/speech_meta"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="156字"
+                android:textColor="#636366"
+                android:textSize="11sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="左滑编辑 · 点击录制"
+                android:textColor="#48484A"
+                android:textSize="10sp" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

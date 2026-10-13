@@ -51,7 +51,14 @@ class MainActivity : AppCompatActivity() {
         setupRecyclerView()
         setupSwipeRefresh()
         setupFab()
+        setupSyncEntry()
         loadScriptsFromApi()
+    }
+
+    private fun setupSyncEntry() {
+        binding.headerSync.setOnClickListener {
+            startActivity(Intent(this, SyncActivity::class.java))
+        }
     }
 
     private fun setupSwipeRefresh() {
@@ -164,8 +171,8 @@ class MainActivity : AppCompatActivity() {
         val intent = Intent(this, VideoRecordActivity::class.java).apply {
             putExtra(VideoRecordActivity.EXTRA_SCRIPT, script.content)
             putExtra(VideoRecordActivity.EXTRA_SCRIPT_ID, script.id)
-            putExtra(VideoRecordActivity.EXTRA_APP_ID, "9578212060")
-            putExtra(VideoRecordActivity.EXTRA_ACCESS_TOKEN, "BVI-b4p-L8ZP_q0iek85BCWDFbJ5-3hc")
+            putExtra(VideoRecordActivity.EXTRA_APP_ID, AsrCredentials.APP_ID)
+            putExtra(VideoRecordActivity.EXTRA_ACCESS_TOKEN, AsrCredentials.ACCESS_TOKEN)
         }
         recordLauncher.launch(intent)
     }

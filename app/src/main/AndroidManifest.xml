@@ -57,6 +57,24 @@
             android:exported="false"
             android:screenOrientation="portrait" />
 
+        <!-- 口语稿同步页（从 PC 端创作工作台读取口语稿） -->
+        <activity
+            android:name=".SyncActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <!-- 同步设置页（服务器地址 + token） -->
+        <activity
+            android:name=".SyncSettingsActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <!-- 口语稿新增 / 编辑（POST 创作 / PUT 修改） -->
+        <activity
+            android:name=".MobileSpeechEditActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
         <!-- 核心:前台服务,承载悬浮窗 + 麦克风 + ASR WebSocket
              foregroundServiceType 必须声明 microphone,否则 Android 12+ 后台采音被拒 -->
         <service

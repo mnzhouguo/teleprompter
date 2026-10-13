@@ -25,10 +25,10 @@ data class Script(
         get() = if (charCount > 0) Math.ceil(charCount / 200.0).toInt() else 0
 
     /**
-     * 获取内容预览（前50字）
+     * 获取内容预览（约 5 行卡片可读长度）
      */
     val preview: String
-        get() = if (content.length > 50) content.substring(0, 50) + "..." else content
+        get() = if (content.length > 160) content.substring(0, 160) + "…" else content
 
     /**
      * 格式化时长显示
