@@ -15,7 +15,7 @@ import kotlinx.coroutines.withContext
 
 /**
  * 口语稿同步：新增 / 编辑页。
- * 新建 → POST /api/mobile/speeches；编辑 → PUT /api/mobile/speeches/{id}
+ * 在线优先写服务端；失败或离线则落本地待同步队列，联网后由 [SpeechOfflineSync] 推送。
  */
 class MobileSpeechEditActivity : AppCompatActivity() {
 
@@ -24,11 +24,15 @@ class MobileSpeechEditActivity : AppCompatActivity() {
         const val EXTRA_SPEECH_ID = "speech_id"
         const val EXTRA_SPEECH_TITLE = "speech_title"
         const val EXTRA_SPEECH_CONTENT = "speech_content"
+        const val EXTRA_LOCAL_KEY = "local_key"
+        const val EXTRA_BASELINE_UPDATED_AT = "baseline_updated_at"
     }
 
     private lateinit var binding: ActivityScriptEditBinding
     private var isNew: Boolean = true
     private var speechId: Long = 0L
+    private var localKey: String = ""
+    private var baselineUpdatedAt: String = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,17 +41,22 @@ class MobileSpeechEditActivity : AppCompatActivity() {
 
         isNew = intent.getBooleanExtra(EXTRA_IS_NEW, true)
         speechId = intent.getLongExtra(EXTRA_SPEECH_ID, 0L)
+        localKey = intent.getStringExtra(EXTRA_LOCAL_KEY).orEmpty()
+            .ifEmpty { PendingSpeechStore.newLocalKey() }
+        baselineUpdatedAt = intent.getStringExtra(EXTRA_BASELINE_UPDATED_AT).orEmpty()
 
-        binding.navTitle.text = if (isNew) "创作口语稿" else "编辑口语稿"
+        binding.navTitle.text = if (isNew) "新建文稿" else "编辑文稿"
         binding.titleInput.hint = "标题（可留空，由服务端生成）"
-        binding.contentInput.hint = "在这里输入口语稿正文…"
+        binding.contentInput.hint = "在这里输入文稿正文…"
 
-        if (!isNew) {
-            binding.titleInput.setText(intent.getStringExtra(EXTRA_SPEECH_TITLE).orEmpty())
-            binding.contentInput.setText(intent.getStringExtra(EXTRA_SPEECH_CONTENT).orEmpty())
-            if (binding.contentInput.text.isNullOrBlank() && speechId > 0) {
-                loadDetail()
-            }
+        val titleExtra = intent.getStringExtra(EXTRA_SPEECH_TITLE).orEmpty()
+        val contentExtra = intent.getStringExtra(EXTRA_SPEECH_CONTENT).orEmpty()
+        if (titleExtra.isNotEmpty() || contentExtra.isNotEmpty()) {
+            binding.titleInput.setText(titleExtra)
+            binding.contentInput.setText(contentExtra)
+        }
+        if (!isNew && binding.contentInput.text.isNullOrBlank() && speechId > 0) {
+            loadDetail()
         }
 
         binding.navBack.setOnClickListener { finish() }
@@ -74,6 +83,32 @@ class MobileSpeechEditActivity : AppCompatActivity() {
     }
 
     private fun loadDetail() {
+        val pending = PendingSpeechSyncLogic.findUpdateByRemoteId(
+            PendingSpeechStore.loadPending(this),
+            speechId
+        )
+        if (pending != null) {
+            binding.titleInput.setText(pending.title)
+            binding.contentInput.setText(pending.content)
+            baselineUpdatedAt = pending.baselineUpdatedAt
+            localKey = pending.localKey
+            updateStats()
+            return
+        }
+
+        val cached = PendingSpeechStore.loadDetail(this, speechId)
+        if (cached != null) {
+            // 离线或已有缓存时先展示本地，避免空白等待
+            binding.titleInput.setText(cached.title)
+            binding.contentInput.setText(cached.content)
+            if (baselineUpdatedAt.isBlank()) baselineUpdatedAt = cached.updatedAt
+            updateStats()
+            if (!NetworkReachability.isOnline(this)) return
+        } else if (!NetworkReachability.isOnline(this)) {
+            Toast.makeText(this, "离线暂无全文，请先联网同步一次", Toast.LENGTH_LONG).show()
+            return
+        }
+
         val baseUrl = SyncSettingsStore.getBaseUrl(this)
         val token = SyncSettingsStore.getToken(this)
         lifecycleScope.launch {
@@ -84,16 +119,20 @@ class MobileSpeechEditActivity : AppCompatActivity() {
             binding.loadingOverlay.visibility = View.GONE
             result.fold(
                 onSuccess = { detail ->
+                    PendingSpeechStore.saveDetail(this@MobileSpeechEditActivity, detail)
                     binding.titleInput.setText(detail.title)
                     binding.contentInput.setText(detail.content)
+                    baselineUpdatedAt = detail.updatedAt
                     updateStats()
                 },
                 onFailure = { error ->
-                    Toast.makeText(
-                        this@MobileSpeechEditActivity,
-                        "加载失败：${error.message}",
-                        Toast.LENGTH_LONG
-                    ).show()
+                    if (cached == null) {
+                        Toast.makeText(
+                            this@MobileSpeechEditActivity,
+                            "加载失败：${error.message}",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
                 }
             )
         }
@@ -104,16 +143,22 @@ class MobileSpeechEditActivity : AppCompatActivity() {
         val content = binding.contentInput.text.toString()
 
         if (content.trim().isEmpty()) {
-            Toast.makeText(this, "请输入口语稿正文", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "请输入文稿正文", Toast.LENGTH_SHORT).show()
             return
         }
 
         val baseUrl = SyncSettingsStore.getBaseUrl(this)
         val token = SyncSettingsStore.getToken(this)
+        val online = NetworkReachability.isOnline(this)
 
         lifecycleScope.launch {
             binding.loadingOverlay.visibility = View.VISIBLE
             binding.navSave.isEnabled = false
+
+            if (!online) {
+                saveLocally(title, content)
+                return@launch
+            }
 
             val result = withContext(Dispatchers.IO) {
                 if (isNew) {
@@ -134,27 +179,64 @@ class MobileSpeechEditActivity : AppCompatActivity() {
                 }
             }
 
-            binding.loadingOverlay.visibility = View.GONE
-            binding.navSave.isEnabled = true
-
             result.fold(
-                onSuccess = {
+                onSuccess = { detail ->
+                    // 在线成功则清掉同条待同步
+                    PendingSpeechStore.remove(this@MobileSpeechEditActivity, localKey)
+                    if (!isNew) {
+                        PendingSpeechStore.loadPending(this@MobileSpeechEditActivity)
+                            .filter { it.kind == PendingSpeechSyncLogic.Kind.UPDATE && it.remoteId == speechId }
+                            .forEach { PendingSpeechStore.remove(this@MobileSpeechEditActivity, it.localKey) }
+                    }
+                    PendingSpeechStore.saveDetail(this@MobileSpeechEditActivity, detail)
+                    binding.loadingOverlay.visibility = View.GONE
+                    binding.navSave.isEnabled = true
                     setResult(Activity.RESULT_OK)
                     Toast.makeText(
                         this@MobileSpeechEditActivity,
-                        if (isNew) "已创建口语稿" else "已保存修改",
+                        if (isNew) "已创建文稿" else "已保存修改",
                         Toast.LENGTH_SHORT
                     ).show()
                     finish()
                 },
-                onFailure = { error ->
-                    Toast.makeText(
-                        this@MobileSpeechEditActivity,
-                        "保存失败：${error.message}",
-                        Toast.LENGTH_LONG
-                    ).show()
+                onFailure = {
+                    saveLocally(title, content)
                 }
             )
         }
+    }
+
+    private fun saveLocally(title: String, content: String) {
+        if (isNew) {
+            PendingSpeechStore.upsertCreate(this, localKey, title, content)
+        } else {
+            PendingSpeechStore.upsertUpdate(
+                context = this,
+                localKey = localKey,
+                remoteId = speechId,
+                title = title,
+                content = content,
+                baselineUpdatedAt = baselineUpdatedAt
+            )
+            PendingSpeechStore.saveDetail(
+                this,
+                MobileSyncApiService.RemoteSpeechDetail(
+                    id = speechId,
+                    title = title.ifEmpty { "未命名草稿" },
+                    content = content,
+                    updatedAt = baselineUpdatedAt
+                )
+            )
+        }
+
+        binding.loadingOverlay.visibility = View.GONE
+        binding.navSave.isEnabled = true
+        setResult(Activity.RESULT_OK)
+        Toast.makeText(
+            this,
+            "已保存到本地，联网后将自动同步",
+            Toast.LENGTH_LONG
+        ).show()
+        finish()
     }
 }

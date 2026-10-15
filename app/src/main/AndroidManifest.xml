@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- 网络:调用豆包 ASR -->
+    <!-- 网络:调用豆包 ASR / 口语稿同步 -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!-- 麦克风 -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
@@ -45,19 +46,7 @@
             android:exported="false"
             android:screenOrientation="portrait" />
 
-        <!-- 编辑/新增文稿页面 -->
-        <activity
-            android:name=".ScriptEditActivity"
-            android:exported="false"
-            android:screenOrientation="portrait" />
-
-        <!-- 浏览文稿页面 -->
-        <activity
-            android:name=".ScriptViewActivity"
-            android:exported="false"
-            android:screenOrientation="portrait" />
-
-        <!-- 口语稿同步页（从 PC 端创作工作台读取口语稿） -->
+        <!-- 旧同步页入口：重定向到首页 -->
         <activity
             android:name=".SyncActivity"
             android:exported="false"
@@ -69,7 +58,7 @@
             android:exported="false"
             android:screenOrientation="portrait" />
 
-        <!-- 口语稿新增 / 编辑（POST 创作 / PUT 修改） -->
+        <!-- 文稿新增 / 编辑（mobile/speeches，支持离线） -->
         <activity
             android:name=".MobileSpeechEditActivity"
             android:exported="false"

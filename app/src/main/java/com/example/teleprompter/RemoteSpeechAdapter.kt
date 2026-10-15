@@ -13,7 +13,8 @@ import com.example.teleprompter.MobileSyncApiService.RemoteSpeech
 class RemoteSpeechAdapter(
     private val speeches: MutableList<RemoteSpeech>,
     private val onSpeechClick: (RemoteSpeech) -> Unit,
-    private val onEditClick: (RemoteSpeech) -> Unit
+    private val onEditClick: (RemoteSpeech) -> Unit,
+    private var pendingIds: Set<Long> = emptySet()
 ) : RecyclerView.Adapter<RemoteSpeechAdapter.ViewHolder>() {
 
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
@@ -35,9 +36,14 @@ class RemoteSpeechAdapter(
         val speech = speeches[position]
         holder.title.text = speech.title
         holder.preview.text = speech.preview.ifBlank { "（无预览）" }
+        val pending = speech.id in pendingIds || PendingSpeechSyncLogic.isLocalPendingId(speech.id)
         holder.meta.text = buildString {
             append("${speech.charCount} 字")
-            if (speech.updatedAt.isNotBlank()) append(" · ${speech.updatedAt}")
+            if (pending) {
+                append(" · 待同步")
+            } else if (speech.updatedAt.isNotBlank()) {
+                append(" · ${speech.updatedAt}")
+            }
         }
 
         holder.front.translationX = 0f
@@ -63,8 +69,9 @@ class RemoteSpeechAdapter(
 
     override fun getItemCount(): Int = speeches.size
 
-    fun submit(list: List<RemoteSpeech>) {
+    fun submit(list: List<RemoteSpeech>, pendingIds: Set<Long> = emptySet()) {
         SwipeRevealHelper.closeOpen(animate = false)
+        this.pendingIds = pendingIds
         speeches.clear()
         speeches.addAll(list)
         notifyDataSetChanged()
